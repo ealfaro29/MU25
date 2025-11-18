@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Miss Universe Hub - Community</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+  // Exponemos Firebase al objeto global window para usarlo en el script principal
+  window.fire = { initializeApp, getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot };
+  window.dispatchEvent(new Event('firebase-ready'));
+</script>
+
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+
+<style>
+  /* --- ESTILOS GLOBALES --- */
+  :root{
+    --bg:#050505; --panel:#0a0a0aef; --divider:#333; --text:#f0f0f0;
+    --gold-1: #bf953f; --gold-2: #fcf6ba; --gold-3: #b38728; --gold-4: #fbf5b7; --gold-5: #aa771c;
+    --silver-1: #bcc6cc; --silver-2: #eee; --silver-3: #999;
+    --bronze-1: #cd7f32; --bronze-2: #eec7a3; --bronze-3: #8c5e2c;
+    --card-bg-1: #fffce6; --card-bg-2: #f7e8a4; --card-text: #3d2b05;
+    --accent: var(--gold-1);
+    --font-display: 'Cinzel', serif;
+    --font-body: 'Playfair Display', serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--bg); color:var(--text); font-family:var(--font-body); overflow-x:hidden;}
+  #p5-background { position: fixed; top: 0; left: 0; z-index: -1; opacity: 0.6; }
+
+  /* --- PANTALLA DE LOGIN --- */
+  #login-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: #000; z-index: 9999; display: flex; justify-content: center; align-items: center;
+    background-image: radial-gradient(circle at center, #1a1a1a 0%, #000 100%);
+  }
+  .login-box {
+    background: var(--panel); border: 2px solid var(--gold-5);
+    padding: 40px; width: 90%; max-width: 400px; text-align: center;
+    box-shadow: 0 0 60px rgba(191, 149, 63, 0.3); border-radius: 8px;
+  }
+  .login-box h1 { font-family: var(--font-display); color: var(--gold-2); margin-bottom: 10px; text-transform: uppercase; }
+  .login-box p { color: #888; margin-bottom: 30px; font-size: 14px; }
+  .input-group { margin-bottom: 20px; text-align: left; }
+  .input-group label { display: block; color: var(--gold-4); margin-bottom: 5px; font-family: var(--font-display); }
+  .input-group input {
+    width: 100%; padding: 12px; background: #000; border: 1px solid var(--gold-5);
+    color: #fff; font-family: var(--font-body); font-size: 16px; outline: none;
+  }
+  .btn-login {
+    width: 100%; padding: 12px; background: linear-gradient(45deg, var(--gold-3), var(--gold-1));
+    border: none; color: #000; font-family: var(--font-display); font-weight: 900;
+    cursor: pointer; margin-top: 10px; font-size: 16px; transition: 0.3s;
+  }
+  .btn-login:hover { filter: brightness(1.2); letter-spacing: 1px; }
+  .error-msg { color: #ff4444; margin-top: 15px; display: none; font-family: sans-serif; font-size: 13px; }
+
+  /* --- APLICACIÓN PRINCIPAL (Oculta al inicio) --- */
+  #app-container { display: none; opacity: 0; transition: opacity 1s; }
+  
+  /* Header & Nav */
+  .hub-nav {
+    display: flex; justify-content: center; gap: 5px;
+    padding: 10px; background: #0c0c0c; border-bottom: 2px solid var(--gold-5);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .tab-btn {
+    font-family: var(--font-display); font-weight: 700; font-size: 16px;
+    letter-spacing: 1px; text-transform: uppercase;
+    padding: 12px 24px; border: none; background: transparent; color: var(--gold-4);
+    cursor: pointer; transition: all .2s; border-bottom: 3px solid transparent;
+  }
+  .tab-btn:hover { color: #fff; background: #ffffff10; }
+  .tab-btn.active { color: var(--gold-2); border-bottom-color: var(--gold-2); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  
+  .user-info {
+    position: absolute; right: 20px; top: 15px; display: flex; align-items: center; gap: 10px;
+  }
+  .user-name { color: var(--gold-2); font-family: var(--font-display); font-weight: bold; font-size: 14px; }
+  .btn-logout { background: transparent; border: 1px solid #444; color: #888; cursor: pointer; font-size: 10px; padding: 2px 5px; }
+
+  /* --- ESTILOS APP TOP BUILDER --- */
+  #app-top-builder .app{max-width:1400px; margin:20px auto 0; padding:0 20px 180px;}
+  #app-top-builder .topbar{text-align:center; margin-bottom:30px; padding: 20px; border-bottom: 1px solid #ffffff20;}
+  #app-top-builder .title{
+    font-family: var(--font-display); font-weight:900; font-size:36px; letter-spacing:2px;
+    background: linear-gradient(to right, var(--gold-1), var(--gold-2), var(--gold-5));
+    background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-transform: uppercase; margin: 0;
+  }
+  #app-top-builder .hint{color:#bbb; font-size:14px; font-family:var(--font-display); letter-spacing:1px; margin-top: 8px;}
+  
+  #app-top-builder .grid{display:grid; gap:20px; grid-template-columns:1fr 1fr 0.9fr 0.8fr}
+  @media (max-width: 1100px){ #app-top-builder .grid{grid-template-columns:1fr 1fr; gap:15px} }
+  @media (max-width: 768px){ #app-top-builder .grid{grid-template-columns:1fr} }
+  
+  #app-top-builder .col{background:var(--panel); border:1px solid #ffffff15; border-radius:4px; padding:15px; box-shadow: 0 10px 30px #00000050;}
+  #app-top-builder .col h2{margin:0 0 15px 0; font-size:20px; color:var(--gold-2); text-align:center; font-family: var(--font-display); text-transform: uppercase; border-bottom: 1px solid var(--gold-5); padding-bottom: 10px;}
+  
+  #app-top-builder .slots{min-height: 400px; display:grid; grid-template-rows: repeat(var(--rows), 1fr); gap:8px;}
+  
+  #app-top-builder .slot{
+    position:relative; display:flex; align-items:center; gap:10px;
+    border:1px solid #ffffff10; background: #00000060;
+    padding:4px 8px 4px 50px; min-height: 50px;
+    transition: all .3s;
+  }
+  #app-top-builder .slot .num{
+    position:absolute; left:0; width:40px; height:100%; display:flex; align-items:center; justify-content:center;
+    font-family: var(--font-display); font-size:18px; font-weight:900; color:#ffffff40; border-right: 1px solid #ffffff10;
+  }
+  #app-top-builder .slot .name {
+    font-family: var(--font-display); font-size: 14px; letter-spacing: 1px;
+    text-transform: uppercase; color: #999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    display: flex; align-items: center; gap: 10px; width: 100%;
+  }
+  #app-top-builder .slot-flag { width: 24px; border-radius: 2px; }
+  
+  /* Drag Styles */
+  #app-top-builder .slot.drag-hover { background: #ffffff10 !important; border-color: var(--gold-2) !important; }
+  #app-top-builder .slot.occupied { background: linear-gradient(to right, #111, #222); border-color: var(--gold-5); }
+  #app-top-builder .slot.occupied .name { color: #fff; font-weight: 700; }
+  #app-top-builder .slot.occupied .num { color: var(--gold-2); }
+  
+  /* Special Ranks */
+  #app-top-builder .slot[data-rank="1"] { min-height: 70px; }
+  #app-top-builder .slot[data-rank="1"].occupied {
+    background: linear-gradient(135deg, var(--gold-5), var(--gold-1) 50%, var(--gold-3));
+    border: 2px solid var(--gold-2);
+  }
+  #app-top-builder .slot[data-rank="1"].occupied .name,
+  #app-top-builder .slot[data-rank="1"].occupied .num { color: #000; text-shadow: none; }
+  
+  /* Pool */
+  #app-top-builder .pool{margin-top:30px; background:var(--panel); border:1px solid var(--gold-5); padding:20px;}
+  #app-top-builder .pool-header { display: flex; justify-content: space-between; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
+  #app-top-builder .pool h3{font-family: var(--font-display); color: var(--gold-2); margin: 0; text-transform: uppercase;}
+  #app-top-builder #search-bar { background: #000; border: 1px solid var(--gold-5); color: #fff; padding: 8px; min-width: 200px; }
+  
+  #app-top-builder .cards{display:flex; flex-wrap:wrap; gap:8px}
+  #app-top-builder .card{
+    background: linear-gradient(145deg, var(--card-bg-1), var(--card-bg-2));
+    color: var(--card-text); font-family: var(--font-display); font-weight: 800;
+    font-size: 12px; padding: 6px 10px; cursor: grab; border: 1px solid var(--gold-1);
+    display: flex; align-items: center; gap: 5px;
+  }
+  #app-top-builder .card.ghost { opacity: 0.4; filter: grayscale(1); }
+  #app-top-builder .card-flag { width: 18px; }
+
+  #save-status {
+    position: fixed; bottom: 20px; right: 20px;
+    background: #000; border: 1px solid var(--gold-5); color: var(--gold-2);
+    padding: 10px 20px; font-family: var(--font-display); font-size: 12px;
+    border-radius: 20px; opacity: 0; transition: opacity 0.5s; pointer-events: none;
+  }
+  #save-status.show { opacity: 1; }
+
+  /* --- ESTILOS VOTACIÓN --- */
+  #app-scoring .app{max-width:700px; margin:20px auto; padding:0 20px 100px;}
+  #app-scoring .carousel-nav{ display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; background: #111; padding: 10px; border-radius: 4px;}
+  #app-scoring .nav-btn{ background: var(--gold-5); border:none; padding: 8px 16px; font-family: var(--font-display); font-weight: bold; cursor: pointer; }
+  #app-scoring .nav-btn:disabled { background: #333; color: #777; cursor: not-allowed; }
+  #app-scoring #counter{ color: var(--gold-2); font-family: var(--font-display); }
+
+  #app-scoring .score-card{
+    background: #0a0a0a; border:1px solid var(--gold-5); border-radius:8px; padding:25px;
+    display: none; /* Oculto por defecto, JS lo muestra */
+  }
+  #app-scoring .score-card.active { display: block; animation: fadeIn 0.5s; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+  #app-scoring .card-header{ display:flex; align-items:center; gap:20px; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 15px;}
+  #app-scoring .card-flag-lg{ width: 80px; border-radius: 4px; box-shadow: 0 4px 10px #000; }
+  #app-scoring .card-country{ font-family: var(--font-display); font-size: 28px; color: var(--gold-2); margin: 0; text-transform: uppercase; }
+  #app-scoring .card-delegate{ color: #999; font-style: italic; margin: 0; }
+
+  #app-scoring .score-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  #app-scoring .score-group h4 { color: var(--gold-4); font-family: var(--font-display); border-bottom: 1px solid #333; margin-bottom: 10px; }
+  
+  #app-scoring .score-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  #app-scoring .score-row label { font-size: 14px; }
+  #app-scoring input {
+    width: 60px; background: #000; border: 1px solid #444; color: var(--gold-2);
+    font-family: var(--font-display); font-size: 18px; text-align: center; padding: 5px;
+  }
+  #app-scoring input:focus { border-color: var(--gold-2); outline: none; }
+
+  #app-scoring .ranking-box { margin-top: 40px; border: 1px solid var(--gold-5); padding: 15px; background: #0a0a0a; }
+  #app-scoring .rank-row { display: flex; padding: 8px; border-bottom: 1px solid #333; font-family: var(--font-display); font-size: 14px; }
+  #app-scoring .rank-pos { width: 30px; color: #666; }
+  #app-scoring .rank-name { flex: 1; color: #fff; }
+  #app-scoring .rank-score { color: var(--gold-2); font-weight: bold; }
+
+</style>
+</head>
+<body>
+
+<div id="p5-background"></div>
+<div id="save-status">Guardado</div>
+
+<div id="login-overlay">
+  <div class="login-box">
+    <h1>Miss Universe Hub</h1>
+    <p>Comunidad Privada</p>
+    <div class="input-group">
+      <label>Usuario</label>
+      <input type="text" id="inp-username" placeholder="Tu nombre de usuario">
+    </div>
+    <div class="input-group">
+      <label>Contraseña</label>
+      <input type="password" id="inp-password" placeholder="Crea o escribe tu clave">
+    </div>
+    <button class="btn-login" id="btn-enter">ENTRAR</button>
+    <div class="error-msg" id="login-msg"></div>
+  </div>
+</div>
+
+<div id="app-container">
+  <nav class="hub-nav">
+    <button class="tab-btn active" data-tab="app-top-builder">MU25 TOP</button>
+    <button class="tab-btn" data-tab="app-scoring">Votaciones</button>
+    <div class="user-info">
+      <span class="user-name" id="display-user">...</span>
+      <button id="btn-logout" class="btn-logout">Salir</button>
+    </div>
+  </nav>
+
+  <div id="app-top-builder" class="tab-content active">
+    <div class="app">
+      <div class="topbar">
+        <h1 class="title">Mi Predicción Final</h1>
+        <div class="hint">Arrastra las banderas a los espacios</div>
+      </div>
+      <div class="grid">
+        <section class="col"><h2>Top 30</h2><div id="col-A" class="slots" style="--rows:10"></div></section>
+        <section class="col"><h2>Top 20</h2><div id="col-B" class="slots" style="--rows:10"></div></section>
+        <section class="col"><h2>Top 10</h2><div id="col-C" class="slots" style="--rows:7"></div></section>
+        <section class="col"><h2>Final 3</h2><div id="col-D" class="slots" style="--rows:3"></div></section>
+      </div>
+      
+      <section class="pool" id="pool">
+        <div class="pool-header">
+          <h3>Delegadas Disponibles (<span id="pool-count">0</span>)</h3>
+          <input type="search" id="search-bar" placeholder="Buscar país...">
+        </div>
+        <div id="cards" class="cards"></div>
+      </section>
+
+      <div style="text-align: center; margin-top: 30px;">
+        <button class="btn-login" id="btn-export" style="width: auto; padding: 10px 30px;">Descargar Imagen (JSON)</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="app-scoring" class="tab-content">
+    <div class="app">
+      <div class="topbar">
+        <h1 class="title">Votación en Vivo</h1>
+        <div class="hint">Califica de 0 a 10</div>
+      </div>
+
+      <div class="carousel-nav">
+        <button id="btn-prev" class="nav-btn">Anterior</button>
+        <div id="counter">Cargando...</div>
+        <button id="btn-next" class="nav-btn">Siguiente</button>
+      </div>
+
+      <div id="card-container">
+        </div>
+
+      <div class="ranking-box">
+        <h2 style="color:var(--gold-2); font-family:var(--font-display); text-align:center; margin:0 0 15px 0;">Mi Ranking en Vivo</h2>
+        <div id="ranking-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// --- 1. DATA: DELEGADAS ---
+const DELEGATES = [
+  {"name": "Albania", "code": "al", "delegate": "Flavia Harizaj"},
+  {"name": "Angola", "code": "ao", "delegate": "Maria Cunha"},
+  {"name": "Argentina", "code": "ar", "delegate": "Aldana Masset"},
+  {"name": "Armenia", "code": "am", "delegate": "Peggy Garabekian"},
+  {"name": "Aruba", "code": "aw", "delegate": "Hannah Arends"},
+  {"name": "Australia", "code": "au", "delegate": "Lexie Brant"},
+  {"name": "Bahamas", "code": "bs", "delegate": "Malique Bowe"},
+  {"name": "Bangladesh", "code": "bd", "delegate": "Tangia Methila"},
+  {"name": "Bélgica", "code": "be", "delegate": "Karen Jansen"},
+  {"name": "Belice", "code": "bz", "delegate": "Isabella Zabaneh"},
+  {"name": "Bielorrusia", "code": "by", "delegate": "Alena Kucheruk"},
+  {"name": "Bolivia", "code": "bo", "delegate": "Yessica Hausermann"},
+  {"name": "Bonaire", "code": "bq", "delegate": "Nicole Peiliker"},
+  {"name": "Botsuana", "code": "bw", "delegate": "Lillian Andries"},
+  {"name": "Brasil", "code": "br", "delegate": "Gabriela Lacerda"},
+  {"name": "Bulgaria", "code": "bg", "delegate": "Gaby Guha"},
+  {"name": "Cabo Verde", "code": "cv", "delegate": "Tahiti Seymour"},
+  {"name": "Islas Caimán", "code": "ky", "delegate": "Tahiti Seymour"},
+  {"name": "Camboya", "code": "kh", "delegate": "Nearysocheata Thai"},
+  {"name": "Camerún", "code": "cm", "delegate": "Josiane Golonga"},
+  {"name": "Canadá", "code": "ca", "delegate": "Jaime VandenBerg"},
+  {"name": "Chile", "code": "cl", "delegate": "Inna Moll"},
+  {"name": "China", "code": "cn", "delegate": "Zhao Na"},
+  {"name": "Colombia", "code": "co", "delegate": "Vanessa Pulgarin"},
+  {"name": "Corea del Sur", "code": "kr", "delegate": "Soo-yeon Lee"},
+  {"name": "Costa de Marfil", "code": "ci", "delegate": "Olivia Yace"},
+  {"name": "Costa Rica", "code": "cr", "delegate": "Mahyla Roth"},
+  {"name": "Croacia", "code": "hr", "delegate": "Laura Gnjatovic"},
+  {"name": "Cuba", "code": "cu", "delegate": "Lina Luaces"},
+  {"name": "Curazao", "code": "cw", "delegate": "Camille Thomas"},
+  {"name": "Dinamarca", "code": "dk", "delegate": "Monique Sonne"},
+  {"name": "Ecuador", "code": "ec", "delegate": "Nadia Mejia"},
+  {"name": "Egipto", "code": "eg", "delegate": "Sabrina Maged"},
+  {"name": "El Salvador", "code": "sv", "delegate": "Giulia Zanoni"},
+  {"name": "Emiratos Árabes", "code": "ae", "delegate": "Mariam Mohamed"},
+  {"name": "Eslovaquia", "code": "sk", "delegate": "Viktoria Güllova"},
+  {"name": "Eslovenia", "code": "si", "delegate": "Hana Klaut"},
+  {"name": "España", "code": "es", "delegate": "Andrea Valero"},
+  {"name": "Estados Unidos", "code": "us", "delegate": "Audrey Eckert"},
+  {"name": "MU Latina", "code": "us", "delegate": "Yamilex Hernandez"},
+  {"name": "Estonia", "code": "ee", "delegate": "Brigitta Schaback"},
+  {"name": "Filipinas", "code": "ph", "delegate": "Ahtisa Manalo"},
+  {"name": "Finlandia", "code": "fi", "delegate": "Sarah Dzafce"},
+  {"name": "Francia", "code": "fr", "delegate": "Ève Gilles"},
+  {"name": "Ghana", "code": "gh", "delegate": "Andromeda Peters"},
+  {"name": "Gran Bretaña", "code": "gb", "delegate": "Danielle Latimer"},
+  {"name": "Grecia", "code": "gr", "delegate": "Mary Chatzipavlou"},
+  {"name": "Guadalupe", "code": "gp", "delegate": "Ophely Mezino"},
+  {"name": "Guatemala", "code": "gt", "delegate": "Raschel Paz"},
+  {"name": "Guinea", "code": "gn", "delegate": "Tiguidanke Berete"},
+  {"name": "Guyana", "code": "gy", "delegate": "Chandini Baljor"},
+  {"name": "Haití", "code": "ht", "delegate": "Melissa Sapini"},
+  {"name": "Honduras", "code": "hn", "delegate": "Alejandra Fuentes"},
+  {"name": "Hong Kong", "code": "hk", "delegate": "Lizzie Li"},
+  {"name": "Hungría", "code": "hu", "delegate": "Kincs Dezsenyi"},
+  {"name": "India", "code": "in", "delegate": "Manika Vishwakarma"},
+  {"name": "Indonesia", "code": "id", "delegate": "Sanly Liu"},
+  {"name": "Irak", "code": "iq", "delegate": "Hanin Al Qoreishy"},
+  {"name": "Irlanda", "code": "ie", "delegate": "Aadya Srivastava"},
+  {"name": "Turks & Caicos", "code": "tc", "delegate": "Bereniece Dickenson"},
+  {"name": "Islas Vírgenes GB", "code": "vg", "delegate": "Olivia Freeman"},
+  {"name": "Islas Vírgenes US", "code": "vi", "delegate": "Britanny Robinson"},
+  {"name": "Israel", "code": "il", "delegate": "Melanie Shiraz"},
+  {"name": "Italia", "code": "it", "delegate": "Lucilla Nori"},
+  {"name": "Jamaica", "code": "jm", "delegate": "Gabrielle Henry"},
+  {"name": "Japón", "code": "jp", "delegate": "Kaori Hashimoto"},
+  {"name": "Kazajistán", "code": "kz", "delegate": "Dana Almassova"},
+  {"name": "Kosovo", "code": "xk", "delegate": "Dorea Shala"},
+  {"name": "Kirguistán", "code": "kg", "delegate": "Mary Kuvakova"},
+  {"name": "Laos", "code": "la", "delegate": "Lattana Munvilay"},
+  {"name": "Letonia", "code": "lv", "delegate": "Meldra Rosenberg"},
+  {"name": "Líbano", "code": "lb", "delegate": "Sarah Bou Jaoude"},
+  {"name": "Macao", "code": "mo", "delegate": "Kris Fong"},
+  {"name": "Malasia", "code": "my", "delegate": "Chloe Lim"},
+  {"name": "Malta", "code": "mt", "delegate": "Julia Cluett"},
+  {"name": "Martinica", "code": "mq", "delegate": "Celya Abatucci"},
+  {"name": "Mauricio", "code": "mu", "delegate": "Aurelie Alcindor"},
+  {"name": "Mayotte", "code": "yt", "delegate": "Nourya Aboutoihi"},
+  {"name": "México", "code": "mx", "delegate": "Fatima Bosch"},
+  {"name": "Moldavia", "code": "md", "delegate": "Mariana Ignat"},
+  {"name": "Myanmar", "code": "mm", "delegate": "Myat Yadanar Soe"},
+  {"name": "Namibia", "code": "na", "delegate": "Johanna Swartbooi"},
+  {"name": "Nepal", "code": "np", "delegate": "Sanya Adhikari"},
+  {"name": "Nicaragua", "code": "ni", "delegate": "Itza Castillo"},
+  {"name": "Níger", "code": "ne", "delegate": "Zoulahatou Amadou"},
+  {"name": "Nigeria", "code": "ng", "delegate": "Basil Onyinyechi"},
+  {"name": "Noruega", "code": "no", "delegate": "Leonora Lysglimt-Rødland"},
+  {"name": "Nueva Zelanda", "code": "nz", "delegate": "Abbigail Sturgin"},
+  {"name": "Países Bajos", "code": "nl", "delegate": "Nathalie Mogbelzada"},
+  {"name": "Pakistán", "code": "pk", "delegate": "Roma Riaz"},
+  {"name": "Palestina", "code": "ps", "delegate": "Nadeen Ayoub"},
+  {"name": "Panamá", "code": "pa", "delegate": "Mirna Caballini"},
+  {"name": "Paraguay", "code": "py", "delegate": "Yanina Gomez"},
+  {"name": "Perú", "code": "pe", "delegate": "Karla Bacigalupo"},
+  {"name": "Portugal", "code": "pt", "delegate": "Camila Vitorino"},
+  {"name": "Puerto Rico", "code": "pr", "delegate": "Zashely Alicea"},
+  {"name": "Rep Checa", "code": "cz", "delegate": "Michaela Tomanova"},
+  {"name": "Rep Dem Congo", "code": "cd", "delegate": "Dorcas Dienda"},
+  {"name": "Rep Dominicana", "code": "do", "delegate": "Jennifer Ventura"},
+  {"name": "Rumania", "code": "ro", "delegate": "Catalina Jacob"},
+  {"name": "Rusia", "code": "ru", "delegate": "Anastasia Venza"},
+  {"name": "Ruanda", "code": "rw", "delegate": "Solange Keita"},
+  {"name": "Santa Lucía", "code": "lc", "delegate": "Shianne Smith"},
+  {"name": "Senegal", "code": "sn", "delegate": "Camilla Diagne"},
+  {"name": "Singapur", "code": "sg", "delegate": "Annika Sager"},
+  {"name": "Sri Lanka", "code": "lk", "delegate": "Lihasha White"},
+  {"name": "Suecia", "code": "se", "delegate": "Daniella Lundqvist"},
+  {"name": "Suiza", "code": "ch", "delegate": "Naima Acosta"},
+  {"name": "Surinam", "code": "sr", "delegate": "Chiara Wijntuin"},
+  {"name": "Tailandia", "code": "th", "delegate": "Praveenar Singh"},
+  {"name": "Tanzania", "code": "tz", "delegate": "Naisae Yona"},
+  {"name": "Trinidad y Tobago", "code": "tt", "delegate": "Latifah Morris"},
+  {"name": "Turquía", "code": "tr", "delegate": "Ceren Arslan"},
+  {"name": "Ucrania", "code": "ua", "delegate": "Sofiya Tkachuk"},
+  {"name": "Uruguay", "code": "uy", "delegate": "Valeria Baladan"},
+  {"name": "Venezuela", "code": "ve", "delegate": "Stephany Abasali"},
+  {"name": "Vietnam", "code": "vn", "delegate": "Hng Giang Nguyn"},
+  {"name": "Zambia", "code": "zm", "delegate": "Kunda Mwamulima"},
+  {"name": "Zimbabue", "code": "zw", "delegate": "Lyshanda Moyas"}
+].sort((a, b) => a.name.localeCompare(b.name));
+
+// --- 2. CONFIGURACIÓN DE FIREBASE (¡PON TUS DATOS AQUÍ!) ---
+const firebaseConfig = {
+  apiKey: "AIzaSyBjLGyOQXd0FE6vjqn_koVsCcWW76Bwz3A",
+  authDomain: "mu25-41abe.firebaseapp.com",
+  projectId: "mu25-41abe",
+  storageBucket: "mu25-41abe.firebasestorage.app",
+  messagingSenderId: "741861425274",
+  appId: "1:741861425274:web:6798c0ebe505ff053bfbc3",
+  measurementId: "G-31T9BGP25N"
+};
+
+// --- 3. LOGICA DE BACKEND Y ESTADO ---
+let db;
+let currentUser = null;
+// userData mantiene el estado local: { top: [{rank:1, name:"..."}, ...], scores: {"Mexico":{pre_swim:9, ...}} }
+let userData = { top: [], scores: {} }; 
+let saveTimeout = null;
+
+// Inicialización de Firebase
+window.addEventListener('firebase-ready', async () => {
+  try {
+    const app = window.fire.initializeApp(firebaseConfig);
+    db = window.fire.getFirestore(app);
+    console.log("Firebase initialized");
+    checkAutoLogin();
+  } catch (e) {
+    console.error("Firebase Error (Check Config):", e);
+    document.getElementById('login-msg').textContent = "Error configurando Firebase. Revisa el código.";
+    document.getElementById('login-msg').style.display = 'block';
+  }
+});
+
+// --- LOGIN SYSTEM ---
+const loginOverlay = document.getElementById('login-overlay');
+const appContainer = document.getElementById('app-container');
+const inpUser = document.getElementById('inp-username');
+const inpPass = document.getElementById('inp-password');
+const btnEnter = document.getElementById('btn-enter');
+const msgEl = document.getElementById('login-msg');
+
+function checkAutoLogin() {
+  const storedUser = localStorage.getItem('mu_user_session');
+  if (storedUser) performLogin(storedUser, null, true);
+}
+
+btnEnter.onclick = () => {
+  const u = inpUser.value.trim().toLowerCase().replace(/\s/g, '');
+  const p = inpPass.value.trim();
+  if (!u || !p) return showMsg("Faltan datos");
+  performLogin(u, p, false);
+};
+
+async function performLogin(user, pass, isAuto) {
+  if (!db) return showMsg("Error: BD no conectada");
+  if (!isAuto) showMsg("Verificando...", "#ccc");
+
+  try {
+    const docRef = window.fire.doc(db, "users", user);
+    const snap = await window.fire.getDoc(docRef);
+
+    if (snap.exists()) {
+      // Usuario existe
+      const data = snap.data();
+      if (isAuto || data.password === pass) {
+        finalizeLogin(user, data);
+      } else {
+        showMsg("Contraseña incorrecta");
+      }
+    } else {
+      // Usuario nuevo (Solo si no es auto login)
+      if (isAuto) { localStorage.removeItem('mu_user_session'); return; }
+      
+      const newUser = { password: pass, top: [], scores: {}, created: new Date().toISOString() };
+      await window.fire.setDoc(docRef, newUser);
+      finalizeLogin(user, newUser);
+    }
+  } catch (e) {
+    console.error(e);
+    showMsg("Error de conexión");
+  }
+}
+
+function finalizeLogin(user, data) {
+  currentUser = user;
+  userData.top = data.top || [];
+  userData.scores = data.scores || {};
+  
+  localStorage.setItem('mu_user_session', user);
+  document.getElementById('display-user').textContent = user;
+  
+  loginOverlay.style.opacity = 0;
+  setTimeout(() => loginOverlay.style.display = 'none', 500);
+  appContainer.style.display = 'block';
+  setTimeout(() => appContainer.style.opacity = 1, 100);
+
+  // Iniciar Apps
+  initTopBuilder();
+  initScoring();
+
+  // Listener en tiempo real (Sincronización entre dispositivos)
+  window.fire.onSnapshot(window.fire.doc(db, "users", user), (doc) => {
+    const newData = doc.data();
+    if (!newData) return;
+    // Solo actualizar si hay cambios remotos significativos para evitar bucles
+    // Simplificación: actualizamos local memory
+    userData.top = newData.top || [];
+    userData.scores = newData.scores || {};
+    // Refrescar UI
+    refreshTopUI(); 
+    // El scoring se actualiza perezosamente al navegar
+  });
+}
+
+function showMsg(txt, color='#ff4444') {
+  msgEl.textContent = txt; msgEl.style.color = color; msgEl.style.display = 'block';
+}
+
+document.getElementById('btn-logout').onclick = () => {
+  localStorage.removeItem('mu_user_session'); location.reload();
+};
+
+// --- LOGICA DE GUARDADO (DEBOUNCE) ---
+function triggerSave() {
+  const statusEl = document.getElementById('save-status');
+  statusEl.textContent = "Guardando...";
+  statusEl.classList.add('show');
+
+  if (saveTimeout) clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(async () => {
+    if (!currentUser || !db) return;
+    try {
+      await window.fire.updateDoc(window.fire.doc(db, "users", currentUser), {
+        top: userData.top,
+        scores: userData.scores
+      });
+      statusEl.textContent = "Guardado ✔";
+      setTimeout(() => statusEl.classList.remove('show'), 2000);
+    } catch (e) {
+      console.error(e);
+      statusEl.textContent = "Error al guardar";
+    }
+  }, 1000); // Espera 1 seg de inactividad para guardar
+}
+
+
+// --- 4. APP 1: TOP BUILDER ---
+const RANGES = { 
+  A: [30,29,28,27,26,25,24,23,22,21], 
+  B: [20,19,18,17,16,15,14,13,12,11], 
+  C: [10,9,8,7,6,5,4], 
+  D: [3,2,1] 
+};
+let CURRENT_DRAG = null;
+
+function initTopBuilder() {
+  // 1. Crear slots vacíos en el DOM
+  for (const band in RANGES) {
+    const col = document.getElementById(`col-${band}`);
+    col.innerHTML = '';
+    RANGES[band].forEach(rank => {
+      const slot = document.createElement('div');
+      slot.className = 'slot';
+      slot.dataset.rank = rank;
+      slot.innerHTML = `<div class="num">${rank}</div><div class="name">—</div>`;
+      
+      // Drag Events
+      slot.addEventListener('dragover', e => { e.preventDefault(); if(CURRENT_DRAG) slot.classList.add('drag-hover'); });
+      slot.addEventListener('dragleave', () => slot.classList.remove('drag-hover'));
+      slot.addEventListener('drop', e => {
+        e.preventDefault(); slot.classList.remove('drag-hover');
+        if(!CURRENT_DRAG) return;
+        const targetRank = parseInt(slot.dataset.rank);
+        
+        if(CURRENT_DRAG.type === 'card') {
+          assignRank(targetRank, CURRENT_DRAG.name);
+        } else if (CURRENT_DRAG.type === 'slot') {
+          swapRanks(CURRENT_DRAG.rank, targetRank);
+        }
+      });
+      
+      // Drag Start (si está ocupado)
+      slot.draggable = true;
+      slot.addEventListener('dragstart', e => {
+        const existing = userData.top.find(x => x.rank === rank);
+        if(!existing) { e.preventDefault(); return; }
+        CURRENT_DRAG = { type: 'slot', rank: rank, name: existing.name };
+        slot.style.opacity = '0.5';
+      });
+      slot.addEventListener('dragend', () => { slot.style.opacity = '1'; CURRENT_DRAG = null; });
+      
+      col.appendChild(slot);
+    });
+  }
+
+  // 2. Listener del Pool (para devolver cartas)
+  const pool = document.getElementById('pool');
+  pool.addEventListener('dragover', e => { e.preventDefault(); pool.style.borderColor = 'var(--gold-2)'; });
+  pool.addEventListener('dragleave', () => pool.style.borderColor = 'var(--gold-5)');
+  pool.addEventListener('drop', e => {
+    e.preventDefault(); pool.style.borderColor = 'var(--gold-5)';
+    if(CURRENT_DRAG && CURRENT_DRAG.type === 'slot') {
+      removeRank(CURRENT_DRAG.rank);
+    }
+  });
+
+  refreshTopUI();
+}
+
+function assignRank(rank, name) {
+  // Eliminar si ya existe en otro lado
+  userData.top = userData.top.filter(x => x.name !== name);
+  // Eliminar quien ocupaba el rank target
+  userData.top = userData.top.filter(x => x.rank !== rank);
+  // Agregar nuevo
+  userData.top.push({ rank, name });
+  refreshTopUI();
+  triggerSave();
+}
+
+function swapRanks(r1, r2) {
+  const item1 = userData.top.find(x => x.rank === r1);
+  const item2 = userData.top.find(x => x.rank === r2);
+  
+  userData.top = userData.top.filter(x => x.rank !== r1 && x.rank !== r2);
+  
+  if(item1) userData.top.push({ rank: r2, name: item1.name });
+  if(item2) userData.top.push({ rank: r1, name: item2.name });
+  
+  refreshTopUI();
+  triggerSave();
+}
+
+function removeRank(rank) {
+  userData.top = userData.top.filter(x => x.rank !== rank);
+  refreshTopUI();
+  triggerSave();
+}
+
+function getFlag(code) { return `https://flagcdn.com/w40/${code.toLowerCase()}.png`; }
+
+function refreshTopUI() {
+  // Limpiar y llenar slots
+  document.querySelectorAll('.slot').forEach(slot => {
+    const rank = parseInt(slot.dataset.rank);
+    const entry = userData.top.find(x => x.rank === rank);
+    const nameEl = slot.querySelector('.name');
+    
+    if (entry) {
+      const delegate = DELEGATES.find(d => d.name === entry.name);
+      slot.classList.add('occupied');
+      nameEl.innerHTML = `<img class="slot-flag" src="${getFlag(delegate.code)}"> ${delegate.name}`;
+    } else {
+      slot.classList.remove('occupied');
+      nameEl.textContent = "—";
+    }
+  });
+
+  // Llenar Pool con las NO usadas
+  const poolContainer = document.getElementById('cards');
+  poolContainer.innerHTML = '';
+  const usedNames = userData.top.map(x => x.name);
+  const available = DELEGATES.filter(d => !usedNames.includes(d.name));
+  
+  document.getElementById('pool-count').textContent = available.length;
+
+  available.forEach(d => {
+    const c = document.createElement('div');
+    c.className = 'card';
+    c.draggable = true;
+    c.innerHTML = `<img class="card-flag" src="${getFlag(d.code)}"> ${d.name}`;
+    c.addEventListener('dragstart', () => { CURRENT_DRAG = { type: 'card', name: d.name }; c.classList.add('ghost'); });
+    c.addEventListener('dragend', () => { c.classList.remove('ghost'); CURRENT_DRAG = null; });
+    poolContainer.appendChild(c);
+  });
+  
+  filterPool(); // Re-aplicar filtro si hay texto
+}
+
+// Buscador
+const searchInput = document.getElementById('search-bar');
+searchInput.addEventListener('input', filterPool);
+function filterPool() {
+  const term = searchInput.value.toLowerCase();
+  document.querySelectorAll('.card').forEach(card => {
+    card.style.display = card.innerText.toLowerCase().includes(term) ? 'flex' : 'none';
+  });
+}
+
+// Exportar JSON
+document.getElementById('btn-export').onclick = () => {
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(userData.top, null, 2));
+  const anchor = document.createElement('a');
+  anchor.setAttribute("href", dataStr);
+  anchor.setAttribute("download", "mi_top_miss_universe.json");
+  anchor.click();
+};
+
+
+// --- 5. APP 2: SCORING ---
+let scoreIndex = 0;
+
+function initScoring() {
+  const container = document.getElementById('card-container');
+  container.innerHTML = '';
+  
+  DELEGATES.forEach((d, i) => {
+    const div = document.createElement('div');
+    div.className = 'score-card';
+    div.id = `score-card-${i}`;
+    
+    div.innerHTML = `
+      <div class="card-header">
+        <img class="card-flag-lg" src="${getFlag(d.code)}">
+        <div>
+          <h2 class="card-country">${d.name}</h2>
+          <p class="card-delegate">${d.delegate}</p>
+        </div>
+      </div>
+      <div class="score-grid">
+        <div class="score-group">
+          <h4>Preliminar</h4>
+          ${buildInput(d.name, 'sw_pre', 'Swimsuit')}
+          ${buildInput(d.name, 'gw_pre', 'Gown')}
+        </div>
+        <div class="score-group">
+          <h4>Final</h4>
+          ${buildInput(d.name, 'sw_fin', 'Swimsuit')}
+          ${buildInput(d.name, 'gw_fin', 'Gown')}
+          ${buildInput(d.name, 'qa_fin', 'Q&A')}
+        </div>
+      </div>
+    `;
+    container.appendChild(div);
+  });
+  
+  showScoreCard(0);
+  updateRankingBoard();
+}
+
+function buildInput(country, key, label) {
+  const val = (userData.scores[country] && userData.scores[country][key]) || '';
+  return `
+    <div class="score-row">
+      <label>${label}</label>
+      <input type="number" min="0" max="10" step="0.1" value="${val}" 
+             oninput="handleScore('${country}', '${key}', this.value)">
+    </div>
+  `;
+}
+
+window.handleScore = (country, key, value) => {
+  if(!userData.scores[country]) userData.scores[country] = {};
+  
+  let num = parseFloat(value);
+  if(num > 10) num = 10;
+  if(num < 0) num = 0;
+  
+  userData.scores[country][key] = isNaN(num) ? '' : num;
+  triggerSave();
+  updateRankingBoard();
+};
+
+function showScoreCard(idx) {
+  document.querySelectorAll('.score-card').forEach(el => el.classList.remove('active'));
+  const current = document.getElementById(`score-card-${idx}`);
+  if(current) current.classList.add('active');
+  
+  scoreIndex = idx;
+  document.getElementById('counter').textContent = `${scoreIndex+1} / ${DELEGATES.length}`;
+  document.getElementById('btn-prev').disabled = (scoreIndex === 0);
+  document.getElementById('btn-next').disabled = (scoreIndex === DELEGATES.length - 1);
+}
+
+document.getElementById('btn-prev').onclick = () => showScoreCard(scoreIndex - 1);
+document.getElementById('btn-next').onclick = () => showScoreCard(scoreIndex + 1);
+
+function updateRankingBoard() {
+  const list = document.getElementById('ranking-list');
+  list.innerHTML = '';
+  
+  const ranked = DELEGATES.map(d => {
+    const s = userData.scores[d.name] || {};
+    const total = (parseFloat(s.sw_pre)||0) + (parseFloat(s.gw_pre)||0) + 
+                  (parseFloat(s.sw_fin)||0) + (parseFloat(s.gw_fin)||0) + (parseFloat(s.qa_fin)||0);
+    return { ...d, total };
+  }).sort((a,b) => b.total - a.total).slice(0, 30); // Top 30 en vivo
+
+  ranked.forEach((d, i) => {
+    if(d.total === 0) return;
+    const row = document.createElement('div');
+    row.className = 'rank-row';
+    row.innerHTML = `
+      <span class="rank-pos">${i+1}</span>
+      <span class="rank-name">${d.name}</span>
+      <span class="rank-score">${d.total.toFixed(1)}</span>
+    `;
+    list.appendChild(row);
+  });
+}
+
+// --- UI TABS ---
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  });
+});
+
+// --- P5 BACKGROUND ---
+function setup(){let cnv=createCanvas(windowWidth, windowHeight);cnv.parent('p5-background');noStroke();}
+function windowResized(){resizeCanvas(windowWidth, windowHeight);}
+let particles=[];
+function draw(){
+  clear();
+  if(frameCount%5===0)particles.push(new P());
+  for(let i=particles.length-1;i>=0;i--){
+    particles[i].up(); particles[i].show();
+    if(particles[i].done()) particles.splice(i,1);
+  }
+}
+class P{
+  constructor(){this.x=random(width);this.y=height+10;this.s=random(2,8);this.v=random(1,3);}
+  up(){this.y-=this.v;this.x+=random(-1,1);}
+  show(){fill(218,165,32,150);circle(this.x,this.y,this.s);}
+  done(){return this.y<-10;}
+}
+
+</script>
+</body>
+</html>

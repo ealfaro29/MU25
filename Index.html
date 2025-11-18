@@ -3,8 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Miss Universe Hub</title>
+<title>Miss Universe Hub - Community</title>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+  window.fire = { initializeApp, getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot };
+  window.dispatchEvent(new Event('firebase-ready'));
+</script>
+
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
 
 <style>
@@ -23,7 +32,81 @@
   body{margin:0; background:var(--bg); color:var(--text); font-family:var(--font-body); overflow-x:hidden;}
   #p5-background { position: fixed; top: 0; left: 0; z-index: -1; opacity: 0.6; }
 
-  /* --- Navegación del Hub (Pestañas) --- */
+  /* --- Login Overlay (Agregado para Firebase) --- */
+  #login-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: #000; z-index: 10000; display: flex; justify-content: center; align-items: center;
+    background-image: radial-gradient(circle at center, #1a1a1a 0%, #000 100%);
+  }
+  .login-box {
+    background: var(--panel); border: 2px solid var(--gold-5);
+    padding: 40px; width: 90%; max-width: 400px; text-align: center;
+    box-shadow: 0 0 60px rgba(191, 149, 63, 0.3); border-radius: 8px;
+  }
+  .login-box h1 { font-family: var(--font-display); color: var(--gold-2); margin-bottom: 10px; text-transform: uppercase; }
+  .login-box p { color: #888; margin-bottom: 30px; }
+  .input-group { margin-bottom: 20px; text-align: left; }
+  .input-group label { display: block; color: var(--gold-4); margin-bottom: 5px; font-family: var(--font-display); }
+  .input-group input {
+    width: 100%; padding: 12px; background: #000; border: 1px solid var(--gold-5);
+    color: #fff; font-family: var(--font-body); font-size: 16px; outline: none;
+  }
+  .btn-login {
+    width: 100%; padding: 12px; background: linear-gradient(45deg, var(--gold-3), var(--gold-1));
+    border: none; color: #000; font-family: var(--font-display); font-weight: 900;
+    cursor: pointer; margin-top: 10px; font-size: 16px; transition: 0.3s;
+  }
+  .btn-login:hover { filter: brightness(1.2); letter-spacing: 1px; }
+  .error-msg { color: #ff4444; margin-top: 15px; display: none; }
+
+  /* --- Contenedor App (Oculto hasta login) --- */
+  #app-container { display: none; opacity: 0; transition: opacity 1s; }
+
+  /* --- Mobile Warning Overlay --- */
+  .mobile-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.95); z-index: 9999;
+    display: flex; justify-content: center; align-items: center;
+    padding: 20px; text-align: center;
+  }
+  .mobile-msg {
+    background: var(--panel); border: 2px solid var(--gold-5);
+    padding: 30px; border-radius: 8px; max-width: 400px;
+    box-shadow: 0 0 50px var(--gold-5);
+  }
+  .mobile-msg h2 { font-family: var(--font-display); color: var(--gold-2); font-size: 24px; margin-top: 0; text-transform: uppercase; }
+  .mobile-msg p { font-family: var(--font-body); font-size: 18px; line-height: 1.5; color: #ddd; }
+  .mobile-msg button { margin-top: 20px; padding: 10px 20px; background: transparent; border: 1px solid var(--gold-2); color: var(--gold-2); font-family: var(--font-display); text-transform: uppercase; cursor: pointer; }
+
+  /* --- Modal de Búsqueda por Slot --- */
+  #slot-search-modal {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.85); z-index: 5000;
+    display: none; justify-content: center; align-items: flex-start;
+    padding-top: 100px;
+  }
+  .search-modal-content {
+    background: var(--panel); border: 1px solid var(--gold-5);
+    width: 90%; max-width: 500px; border-radius: 8px; padding: 20px;
+    box-shadow: 0 0 30px #000;
+  }
+  .search-modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+  .search-modal-header h3 { margin: 0; font-family: var(--font-display); color: var(--gold-2); }
+  .close-modal { cursor: pointer; font-size: 24px; color: #999; }
+  .close-modal:hover { color: #fff; }
+  #slot-search-input {
+    width: 100%; padding: 12px; background: #000; border: 1px solid var(--gold-5);
+    color: #fff; font-family: var(--font-body); font-size: 16px; margin-bottom: 15px;
+  }
+  #slot-search-results { max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; }
+  .search-result-item {
+    padding: 10px; background: #ffffff10; cursor: pointer; display: flex; align-items: center; gap: 10px;
+    transition: background 0.2s;
+  }
+  .search-result-item:hover { background: var(--gold-5); color: #000; }
+  .search-result-item img { width: 24px; border-radius: 2px; }
+
+  /* --- Navegación --- */
   .hub-nav {
     display: flex; justify-content: center; gap: 5px;
     padding: 10px; background: #0c0c0c; border-bottom: 2px solid var(--gold-5);
@@ -35,21 +118,19 @@
     padding: 12px 24px; border: none; background: transparent; color: var(--gold-4);
     cursor: pointer; transition: all .2s; border-bottom: 3px solid transparent;
   }
-  .tab-btn:hover {
-    color: #fff; background: #ffffff10;
-  }
-  .tab-btn.active {
-    color: var(--gold-2);
-    border-bottom-color: var(--gold-2);
-  }
-  .tab-content {
-    display: none;
-  }
-  .tab-content.active {
-    display: block;
-  }
+  .tab-btn:hover { color: #fff; background: #ffffff10; }
+  .tab-btn.active { color: var(--gold-2); border-bottom-color: var(--gold-2); }
+  
+  /* Info usuario en nav */
+  .user-info { position: absolute; right: 20px; top: 15px; display: flex; align-items: center; gap: 10px; }
+  .user-name { color: var(--gold-2); font-family: var(--font-display); font-size: 14px; display: none; }
+  @media(min-width: 768px) { .user-name { display: block; } }
+  .btn-logout { background: transparent; border: 1px solid #444; color: #888; cursor: pointer; font-size: 10px; padding: 4px 8px; }
 
-  /* --- Estilos para App 1: Creador de Top --- */
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* --- Estilos App 1: Top Builder --- */
   #app-top-builder .app{max-width:1400px; margin:20px auto 0; padding:0 20px 180px;}
   #app-top-builder .topbar{text-align:center; margin-bottom:30px; padding: 20px; background: linear-gradient(to bottom, #0000, #000a); border-bottom: 1px solid #ffffff20;}
   #app-top-builder .title{
@@ -65,22 +146,23 @@
   #app-top-builder .slots{min-height: 600px; display:grid; grid-template-rows: repeat(var(--rows), 1fr); gap:10px;}
   @media (max-width: 1100px){ #app-top-builder .grid{grid-template-columns:1fr 1fr; gap:15px} #app-top-builder .col:nth-child(3), #app-top-builder .col:nth-child(4) { grid-column: span 1; } }
   @media (max-width: 768px){ #app-top-builder .grid{grid-template-columns:1fr} }
+  
   #app-top-builder .slot{
     position:relative; display:flex; align-items:center; gap:15px;
     border:1px solid #ffffff10; background: #00000060;
     padding:4px 12px 4px 60px; min-height: 55px;
     transition: all .3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    cursor: pointer;
   }
+  #app-top-builder .slot:hover { background: #ffffff08; border-color: var(--gold-5); }
+  
   #app-top-builder .slot > * { pointer-events: none; }
   #app-top-builder .slot .num{
     position:absolute; left:10px; font-family: var(--font-display);
     width:40px; height:100%; display:flex; align-items:center; justify-content:center;
     font-size:20px; font-weight:900; color:#ffffff40; border-right: 1px solid #ffffff10;
   }
-  #app-top-builder .slot .photo{
-    width:44px; height:44px; border-radius:50%; border:2px solid var(--gold-1);
-    overflow:hidden; display:none; background:#111; flex-shrink:0; box-shadow: 0 0 15px #000;
-  }
+  #app-top-builder .slot .photo{ width:44px; height:44px; border-radius:50%; border:2px solid var(--gold-1); overflow:hidden; display:none; background:#111; flex-shrink:0; box-shadow: 0 0 15px #000; }
   #app-top-builder .slot .photo img{width:100%; height:100%; object-fit:cover}
   #app-top-builder .slot .name {
     font-family: var(--font-display); font-size: 15px; letter-spacing: 1px;
@@ -152,9 +234,16 @@
   #app-top-builder .btn.primary:hover{ filter: brightness(1.2); }
   #app-top-builder .sep{width:1px; height:30px; background:var(--divider); margin:0 10px}
   #app-top-builder .status{font-family: var(--font-display); color:var(--gold-4); margin-left:15px}
+  #save-status {
+    position: fixed; bottom: 20px; right: 20px;
+    background: #000; border: 1px solid var(--gold-5); color: var(--gold-2);
+    padding: 10px 20px; font-family: var(--font-display); font-size: 12px;
+    border-radius: 20px; opacity: 0; transition: opacity 0.5s; pointer-events: none;
+  }
+  #save-status.show { opacity: 1; }
 
 
-  /* --- Estilos para App 2: Votaciones en Vivo --- */
+  /* --- Estilos App 2: Votaciones --- */
   #app-scoring .app{max-width:700px; margin:20px auto; padding:0 20px 100px;}
   #app-scoring .topbar{text-align:center; margin-bottom:30px; padding: 20px 0; border-bottom: 1px solid #ffffff20;}
   #app-scoring .title{
@@ -164,235 +253,714 @@
     text-transform: uppercase; margin: 0;
   }
   #app-scoring .hint{color:#bbb; font-size:16px; font-family:var(--font-display); letter-spacing:1px; margin-top: 8px;}
-  #app-scoring .carousel-nav{
-    display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;
-    padding: 10px; background: #0a0a0a; border-radius: 4px;
-  }
-  #app-scoring .nav-btn{
-    background: var(--gold-5); color: #000; border:none; padding: 12px 20px;
-    font-family: var(--font-display); font-weight: 700; font-size: 16px;
-    cursor:pointer; transition: all .2s; border-radius: 3px;
-  }
+  #app-scoring .carousel-nav{ display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding: 10px; background: #0a0a0a; border-radius: 4px; }
+  #app-scoring .nav-btn{ background: var(--gold-5); color: #000; border:none; padding: 12px 20px; font-family: var(--font-display); font-weight: 700; font-size: 16px; cursor:pointer; transition: all .2s; border-radius: 3px; }
   #app-scoring .nav-btn:hover{ background: var(--gold-2); }
   #app-scoring .nav-btn:disabled{ background: var(--divider); color: #777; cursor:not-allowed; }
   #app-scoring #counter{ font-size: 18px; font-family: var(--font-display); color: var(--gold-2); }
   #app-scoring .carousel-wrapper{ perspective: 1000px; }
   #app-scoring #card-container{ position:relative; min-height: 550px; }
-  #app-scoring .score-card{
-    position:absolute; width:100%; top:0; left:0;
-    background: #111; border:1px solid var(--gold-5); border-radius:8px;
-    padding:25px; box-shadow: 0 10px 40px #000;
-    transition: transform .5s ease-out, opacity .5s ease-out;
-    opacity: 0;
-    transform: translateX(100%) rotateY(-20deg);
-  }
-  #app-scoring .score-card.active{
-    opacity: 1;
-    transform: translateX(0) rotateY(0);
-    z-index: 10;
-  }
-  #app-scoring .score-card.exiting{
-    opacity: 0;
-    transform: translateX(-100%) rotateY(20deg);
-    z-index: 5;
-  }
-  #app-scoring .card-header{
-    display:flex; align-items:center; gap:20px;
-    border-bottom: 1px solid var(--divider); padding-bottom: 20px; margin-bottom: 20px;
-  }
-  #app-scoring .card-flag{
-    width: 100px; border-radius: 4px; box-shadow: 0 4px 15px #000;
-  }
+  #app-scoring .score-card{ position:absolute; width:100%; top:0; left:0; background: #111; border:1px solid var(--gold-5); border-radius:8px; padding:25px; box-shadow: 0 10px 40px #000; transition: transform .5s ease-out, opacity .5s ease-out; opacity: 0; transform: translateX(100%) rotateY(-20deg); }
+  #app-scoring .score-card.active{ opacity: 1; transform: translateX(0) rotateY(0); z-index: 10; }
+  #app-scoring .score-card.exiting{ opacity: 0; transform: translateX(-100%) rotateY(20deg); z-index: 5; }
+  #app-scoring .card-header{ display:flex; align-items:center; gap:20px; border-bottom: 1px solid var(--divider); padding-bottom: 20px; margin-bottom: 20px; }
+  #app-scoring .card-flag{ width: 100px; border-radius: 4px; box-shadow: 0 4px 15px #000; }
   #app-scoring .card-names{flex:1;}
-  #app-scoring .card-country{
-    font-family: var(--font-display); font-size: 32px; font-weight: 900;
-    color: var(--gold-2); margin: 0; text-transform: uppercase;
-  }
-  #app-scoring .card-delegate{
-    font-family: var(--font-body); font-size: 20px; color: var(--text);
-    margin: 5px 0 0 0; font-style: italic;
-  }
-  #app-scoring .card-scores{
-    display:grid; grid-template-columns: 1fr 1fr; gap: 25px;
-  }
-  #app-scoring .score-col h3{
-    font-family: var(--font-display); color: var(--gold-4);
-    font-size: 24px; margin: 0 0 15px 0; letter-spacing: 1px;
-    border-bottom: 1px solid var(--gold-5); padding-bottom: 10px;
-  }
-  #app-scoring .score-row{
-    display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;
-  }
-  #app-scoring .score-row label{
-    font-family: var(--font-body); font-size: 18px; font-weight: 700;
-  }
-  #app-scoring .score-row input{
-    width: 80px; height: 50px;
-    background: #000; border: 1px solid var(--divider);
-    color: var(--gold-2); font-family: var(--font-display);
-    font-size: 24px; font-weight: 700; text-align: center;
-    border-radius: 4px;
-  }
-  #app-scoring .score-row input:focus{
-    outline: none; border-color: var(--gold-2); background: #111;
-  }
-
-  /* --- Estilos de la Tabla de Ranking --- */
-  #app-scoring .ranking-container {
-    margin-top: 40px;
-    background: var(--panel);
-    border: 1px solid var(--gold-5);
-    border-radius: 4px;
-    padding: 20px;
-  }
-  #app-scoring .ranking-container h2 {
-    font-family: var(--font-display); color: var(--gold-2);
-    text-align: center; text-transform: uppercase;
-    font-size: 24px; margin: 0 0 20px 0; letter-spacing: 1px;
-    border-bottom: 1px solid var(--gold-5); padding-bottom: 10px;
-  }
-  #app-scoring .rank-row {
-    display: flex; align-items: center; gap: 15px;
-    padding: 10px; border-radius: 4px;
-    border: 1px solid #ffffff10;
-    margin-bottom: 8px;
-    transition: all .2s;
-  }
-  #app-scoring .rank-row .rank-pos {
-    font-family: var(--font-display); font-weight: 900; font-size: 20px;
-    color: #ffffff40;
-    width: 35px; text-align: center; flex-shrink: 0;
-    border-right: 1px solid #ffffff10;
-  }
-  #app-scoring .rank-row .rank-name {
-    font-family: var(--font-display); font-size: 16px;
-    text-transform: uppercase; letter-spacing: 1px;
-    color: #fff; font-weight: 700;
-    display: flex; align-items: center; gap: 10px;
-    flex-grow: 1;
-  }
-  #app-scoring .rank-row .rank-flag {
-    width: 24px; height: auto; border-radius: 2px;
-  }
-  #app-scoring .rank-row .rank-score {
-    font-family: var(--font-display); font-size: 20px;
-    font-weight: 900; color: var(--gold-2);
-  }
-
-  /* --- Estilos Top 3 para Ranking --- */
-  #app-scoring .rank-row[data-rank="1"] {
-    background: linear-gradient(135deg, var(--gold-5), var(--gold-1) 30%, var(--gold-2) 50%, var(--gold-1) 70%, var(--gold-3));
-    border: 1px solid var(--gold-2);
-  }
-  #app-scoring .rank-row[data-rank="1"] .rank-name,
-  #app-scoring .rank-row[data-rank="1"] .rank-pos,
-  #app-scoring .rank-row[data-rank="1"] .rank-score {
-    color: #000;
-  }
+  #app-scoring .card-country{ font-family: var(--font-display); font-size: 32px; font-weight: 900; color: var(--gold-2); margin: 0; text-transform: uppercase; }
+  #app-scoring .card-delegate{ font-family: var(--font-body); font-size: 20px; color: var(--text); margin: 5px 0 0 0; font-style: italic; }
+  #app-scoring .card-scores{ display:grid; grid-template-columns: 1fr 1fr; gap: 25px; }
+  #app-scoring .score-col h3{ font-family: var(--font-display); color: var(--gold-4); font-size: 24px; margin: 0 0 15px 0; letter-spacing: 1px; border-bottom: 1px solid var(--gold-5); padding-bottom: 10px; }
+  #app-scoring .score-row{ display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px; }
+  #app-scoring .score-row label{ font-family: var(--font-body); font-size: 18px; font-weight: 700; }
+  #app-scoring .score-row input{ width: 80px; height: 50px; background: #000; border: 1px solid var(--divider); color: var(--gold-2); font-family: var(--font-display); font-size: 24px; font-weight: 700; text-align: center; border-radius: 4px; }
+  #app-scoring .score-row input:focus{ outline: none; border-color: var(--gold-2); background: #111; }
+  #app-scoring .ranking-container { margin-top: 40px; background: var(--panel); border: 1px solid var(--gold-5); border-radius: 4px; padding: 20px; }
+  #app-scoring .ranking-container h2 { font-family: var(--font-display); color: var(--gold-2); text-align: center; text-transform: uppercase; font-size: 24px; margin: 0 0 20px 0; letter-spacing: 1px; border-bottom: 1px solid var(--gold-5); padding-bottom: 10px; }
+  #app-scoring .rank-row { display: flex; align-items: center; gap: 15px; padding: 10px; border-radius: 4px; border: 1px solid #ffffff10; margin-bottom: 8px; transition: all .2s; }
+  #app-scoring .rank-row .rank-pos { font-family: var(--font-display); font-weight: 900; font-size: 20px; color: #ffffff40; width: 35px; text-align: center; flex-shrink: 0; border-right: 1px solid #ffffff10; }
+  #app-scoring .rank-row .rank-name { font-family: var(--font-display); font-size: 16px; text-transform: uppercase; letter-spacing: 1px; color: #fff; font-weight: 700; display: flex; align-items: center; gap: 10px; flex-grow: 1; }
+  #app-scoring .rank-row .rank-flag { width: 24px; height: auto; border-radius: 2px; }
+  #app-scoring .rank-row .rank-score { font-family: var(--font-display); font-size: 20px; font-weight: 900; color: var(--gold-2); }
+  #app-scoring .rank-row[data-rank="1"] { background: linear-gradient(135deg, var(--gold-5), var(--gold-1) 30%, var(--gold-2) 50%, var(--gold-1) 70%, var(--gold-3)); border: 1px solid var(--gold-2); }
+  #app-scoring .rank-row[data-rank="1"] .rank-name, #app-scoring .rank-row[data-rank="1"] .rank-pos, #app-scoring .rank-row[data-rank="1"] .rank-score { color: #000; }
   #app-scoring .rank-row[data-rank="1"] .rank-pos { border-right-color: #00000030; }
-
-  #app-scoring .rank-row[data-rank="2"] {
-    background: linear-gradient(135deg, var(--silver-3), var(--silver-1));
-    border: 1px solid var(--silver-2);
-  }
-  #app-scoring .rank-row[data-rank="2"] .rank-name,
-  #app-scoring .rank-row[data-rank="2"] .rank-pos,
-  #app-scoring .rank-row[data-rank="2"] .rank-score {
-    color: #000;
-  }
+  #app-scoring .rank-row[data-rank="2"] { background: linear-gradient(135deg, var(--silver-3), var(--silver-1)); border: 1px solid var(--silver-2); }
+  #app-scoring .rank-row[data-rank="2"] .rank-name, #app-scoring .rank-row[data-rank="2"] .rank-pos, #app-scoring .rank-row[data-rank="2"] .rank-score { color: #000; }
   #app-scoring .rank-row[data-rank="2"] .rank-pos { border-right-color: #00000030; }
-  
-  #app-scoring .rank-row[data-rank="3"] {
-    background: linear-gradient(135deg, var(--bronze-3), var(--bronze-1));
-    border: 1px solid var(--bronze-2);
-  }
-  #app-scoring .rank-row[data-rank="3"] .rank-name,
-  #app-scoring .rank-row[data-rank="3"] .rank-pos {
-    color: #fff; text-shadow: 0 1px 1px #000;
-  }
-   #app-scoring .rank-row[data-rank="3"] .rank-score {
-    color: var(--gold-4);
-  }
+  #app-scoring .rank-row[data-rank="3"] { background: linear-gradient(135deg, var(--bronze-3), var(--bronze-1)); border: 1px solid var(--bronze-2); }
+  #app-scoring .rank-row[data-rank="3"] .rank-name, #app-scoring .rank-row[data-rank="3"] .rank-pos { color: #fff; text-shadow: 0 1px 1px #000; }
+  #app-scoring .rank-row[data-rank="3"] .rank-score { color: var(--gold-4); }
 
 </style>
 </head>
 <body>
 
 <div id="p5-background"></div>
+<div id="save-status">Guardado en la nube</div>
 
-<nav class="hub-nav">
-  <button class="tab-btn active" data-tab="app-top-builder">MU25 TOP</button>
-  <button class="tab-btn" data-tab="app-scoring">Votaciones en vivo</button>
-</nav>
-
-<div id="app-top-builder" class="tab-content active">
-  <div class="app">
-    <div class="topbar">
-      <h1 class="title">Miss Universe Official Top</h1>
-      <div class="hint">Arrastra a tus favoritas hacia la corona</div>
+<div id="login-overlay">
+  <div class="login-box">
+    <h1>Miss Universe Hub</h1>
+    <p>Comunidad Privada</p>
+    <div class="input-group">
+      <label>Usuario</label>
+      <input type="text" id="inp-username" placeholder="Tu nombre de usuario">
     </div>
-    <div class="grid">
-      <section class="col"><h2>Top 30</h2><div id="col-A"></div></section>
-      <section class="col"><h2>Top 20</h2><div id="col-B"></div></section>
-      <section class="col"><h2>Top 10</h2> <div id="col-C"></div></section>
-      <section class="col"><h2>Final Top 3</h2>  <div id="col-D"></div></section>
+    <div class="input-group">
+      <label>Contraseña</label>
+      <input type="password" id="inp-password" placeholder="Crea o escribe tu clave">
     </div>
-    <section class="pool" id="pool">
-      <div class="pool-header">
-        <h3>Delegadas Disponibles (<span id="pool-count">0</span>)</h3>
-        <input type="search" id="search-bar" placeholder="Buscar delegada...">
-      </div>
-      <div class="banca-container">
-        <h4>Banca</h4>
-        <div id="banca-slots"></div>
-      </div>
-      <div id="cards" class="cards"></div>
-    </section>
-    <div class="foot">
-      <div class="bar">
-        <button id="btn-clear" class="btn">Limpiar Todo</button>
-        <span class="sep"></span>
-        <button id="btn-shuffle" class="btn">Mezclar</button>
-        <button id="btn-sort" class="btn">A-Z</button>
-        <span class="sep"></span>
-        <button id="btn-import" class="btn">Importar Top</button>
-        <button id="btn-export" class="btn primary">Exportar Top Final</button>
-        <span class="status" id="status-text">Preparado</span>
-      </div>
-    </div>
+    <button class="btn-login" id="btn-enter">ENTRAR</button>
+    <div class="error-msg" id="login-msg"></div>
   </div>
-  <input type="file" id="file-import-top" accept=".json" style="display: none;">
 </div>
 
-<div id="app-scoring" class="tab-content">
-  <div class="app">
-    <div class="topbar">
-      <h1 class="title">Votaciones en Vivo</h1>
-      <div class="hint">Puntuaciones de 0 a 10</div>
-    </div>
-  
-    <div class="carousel-nav">
-      <button id="btn-prev" class="nav-btn">Anterior</button>
-      <div id="counter">0 / 0</div>
-      <button id="btn-next" class="nav-btn">Siguiente</button>
-    </div>
-  
-    <div class="carousel-wrapper">
-      <div id="card-container" class="card-container">
-        </div>
-    </div>
-
-    <div class="ranking-container">
-      <h2>Ranking en Vivo (Top 30)</h2>
-      <div id="ranking-list">
-        </div>
-    </div>
-    </div>
+<div id="mobile-warning" class="mobile-overlay" style="display:none">
+  <div class="mobile-msg">
+    <h2>⚠️ Atención</h2>
+    <p>Esta aplicación está diseñada y optimizada para escritorio.</p>
+    <p>Para la mejor experiencia, por favor ábrela en una computadora o tablet grande.</p>
+    <button id="btn-close-mobile">Entendido</button>
+  </div>
 </div>
 
+<div id="slot-search-modal">
+  <div class="search-modal-content">
+    <div class="search-modal-header">
+      <h3>Asignar Delegada</h3>
+      <span class="close-modal" id="close-slot-search">&times;</span>
+    </div>
+    <input type="text" id="slot-search-input" placeholder="Escribe el nombre del país...">
+    <div id="slot-search-results"></div>
+  </div>
+</div>
+
+<div id="app-container">
+    <nav class="hub-nav">
+      <button class="tab-btn active" data-tab="app-top-builder">MU25 TOP</button>
+      <button class="tab-btn" data-tab="app-scoring">Votaciones en vivo</button>
+      <div class="user-info">
+          <span class="user-name" id="display-user">...</span>
+          <button id="btn-logout" class="btn-logout">Salir</button>
+      </div>
+    </nav>
+
+    <div id="app-top-builder" class="tab-content active">
+      <div class="app">
+        <div class="topbar">
+          <h1 class="title">Miss Universe Official Top</h1>
+          <div class="hint">Arrastra a tus favoritas hacia la corona o haz clic en una casilla vacía para buscar.</div>
+        </div>
+        <div class="grid">
+          <section class="col"><h2>Top 30</h2><div id="col-A"></div></section>
+          <section class="col"><h2>Top 20</h2><div id="col-B"></div></section>
+          <section class="col"><h2>Top 10</h2> <div id="col-C"></div></section>
+          <section class="col"><h2>Final Top 3</h2>  <div id="col-D"></div></section>
+        </div>
+        <section class="pool" id="pool">
+          <div class="pool-header">
+            <h3>Delegadas Disponibles (<span id="pool-count">0</span>)</h3>
+            <input type="search" id="search-bar" placeholder="Buscar delegada...">
+          </div>
+          <div class="banca-container">
+            <h4>Banca</h4>
+            <div id="banca-slots"></div>
+          </div>
+          <div id="cards" class="cards"></div>
+        </section>
+        <div class="foot">
+          <div class="bar">
+            <button id="btn-clear" class="btn">Limpiar Todo</button>
+            <span class="sep"></span>
+            <button id="btn-shuffle" class="btn">Mezclar</button>
+            <button id="btn-sort" class="btn">A-Z</button>
+            <span class="sep"></span>
+            <button id="btn-import" class="btn">Importar Top</button>
+            <button id="btn-export" class="btn primary">Exportar Top Final</button>
+            <span class="status" id="status-text">Preparado</span>
+          </div>
+        </div>
+      </div>
+      <input type="file" id="file-import-top" accept=".json" style="display: none;">
+    </div>
+
+    <div id="app-scoring" class="tab-content">
+      <div class="app">
+        <div class="topbar">
+          <h1 class="title">Votaciones en Vivo</h1>
+          <div class="hint">Puntuaciones de 0 a 10</div>
+        </div>
+        <div class="carousel-nav">
+          <button id="btn-prev" class="nav-btn">Anterior</button>
+          <div id="counter">0 / 0</div>
+          <button id="btn-next" class="nav-btn">Siguiente</button>
+        </div>
+        <div class="carousel-wrapper">
+          <div id="card-container" class="card-container"></div>
+        </div>
+        <div class="ranking-container">
+          <h2>Ranking en Vivo (Top 30)</h2>
+          <div id="ranking-list"></div>
+        </div>
+      </div>
+    </div>
+</div>
 
 <script>
-// --- p5.js Fondo (Compartido) ---
+// --- DATA: LISTA COMPLETA DELEGADAS ---
+const DELEGATES_DATA = [
+  {"name": "Albania", "code": "al", "delegate": "Flavia Harizaj"},
+  {"name": "Angola", "code": "ao", "delegate": "Maria Cunha"},
+  {"name": "Argentina", "code": "ar", "delegate": "Aldana Masset"},
+  {"name": "Armenia", "code": "am", "delegate": "Peggy Garabekian"},
+  {"name": "Aruba", "code": "aw", "delegate": "Hannah Arends"},
+  {"name": "Australia", "code": "au", "delegate": "Lexie Brant"},
+  {"name": "Bahamas", "code": "bs", "delegate": "Malique Bowe"},
+  {"name": "Bangladesh", "code": "bd", "delegate": "Tangia Methila"},
+  {"name": "Bélgica", "code": "be", "delegate": "Karen Jansen"},
+  {"name": "Belice", "code": "bz", "delegate": "Isabella Zabaneh"},
+  {"name": "Bielorrusia", "code": "by", "delegate": "Alena Kucheruk"},
+  {"name": "Bolivia", "code": "bo", "delegate": "Yessica Hausermann"},
+  {"name": "Bonaire", "code": "bq", "delegate": "Nicole Peiliker"},
+  {"name": "Botsuana", "code": "bw", "delegate": "Lillian Andries"},
+  {"name": "Brasil", "code": "br", "delegate": "Gabriela Lacerda"},
+  {"name": "Bulgaria", "code": "bg", "delegate": "Gaby Guha"},
+  {"name": "Cabo Verde", "code": "cv", "delegate": "Tahiti Seymour"},
+  {"name": "Islas Caimán", "code": "ky", "delegate": "Tahiti Seymour"},
+  {"name": "Camboya", "code": "kh", "delegate": "Nearysocheata Thai"},
+  {"name": "Camerún", "code": "cm", "delegate": "Josiane Golonga"},
+  {"name": "Canadá", "code": "ca", "delegate": "Jaime VandenBerg"},
+  {"name": "Chile", "code": "cl", "delegate": "Inna Moll"},
+  {"name": "China", "code": "cn", "delegate": "Zhao Na"},
+  {"name": "Colombia", "code": "co", "delegate": "Vanessa Pulgarin"},
+  {"name": "Corea del Sur", "code": "kr", "delegate": "Soo-yeon Lee"},
+  {"name": "Costa de Marfil", "code": "ci", "delegate": "Olivia Yace"},
+  {"name": "Costa Rica", "code": "cr", "delegate": "Mahyla Roth"},
+  {"name": "Croacia", "code": "hr", "delegate": "Laura Gnjatovic"},
+  {"name": "Cuba", "code": "cu", "delegate": "Lina Luaces"},
+  {"name": "Curazao", "code": "cw", "delegate": "Camille Thomas"},
+  {"name": "Dinamarca", "code": "dk", "delegate": "Monique Sonne"},
+  {"name": "Ecuador", "code": "ec", "delegate": "Nadia Mejia"},
+  {"name": "Egipto", "code": "eg", "delegate": "Sabrina Maged"},
+  {"name": "El Salvador", "code": "sv", "delegate": "Giulia Zanoni"},
+  {"name": "Emiratos Árabes", "code": "ae", "delegate": "Mariam Mohamed"},
+  {"name": "Eslovaquia", "code": "sk", "delegate": "Viktoria Güllova"},
+  {"name": "Eslovenia", "code": "si", "delegate": "Hana Klaut"},
+  {"name": "España", "code": "es", "delegate": "Andrea Valero"},
+  {"name": "Estados Unidos", "code": "us", "delegate": "Audrey Eckert"},
+  {"name": "MU Latina", "code": "us", "delegate": "Yamilex Hernandez"},
+  {"name": "Estonia", "code": "ee", "delegate": "Brigitta Schaback"},
+  {"name": "Filipinas", "code": "ph", "delegate": "Ahtisa Manalo"},
+  {"name": "Finlandia", "code": "fi", "delegate": "Sarah Dzafce"},
+  {"name": "Francia", "code": "fr", "delegate": "Ève Gilles"},
+  {"name": "Ghana", "code": "gh", "delegate": "Andromeda Peters"},
+  {"name": "Gran Bretaña", "code": "gb", "delegate": "Danielle Latimer"},
+  {"name": "Grecia", "code": "gr", "delegate": "Mary Chatzipavlou"},
+  {"name": "Guadalupe", "code": "gp", "delegate": "Ophely Mezino"},
+  {"name": "Guatemala", "code": "gt", "delegate": "Raschel Paz"},
+  {"name": "Guinea", "code": "gn", "delegate": "Tiguidanke Berete"},
+  {"name": "Guyana", "code": "gy", "delegate": "Chandini Baljor"},
+  {"name": "Haití", "code": "ht", "delegate": "Melissa Sapini"},
+  {"name": "Honduras", "code": "hn", "delegate": "Alejandra Fuentes"},
+  {"name": "Hong Kong", "code": "hk", "delegate": "Lizzie Li"},
+  {"name": "Hungría", "code": "hu", "delegate": "Kincs Dezsenyi"},
+  {"name": "India", "code": "in", "delegate": "Manika Vishwakarma"},
+  {"name": "Indonesia", "code": "id", "delegate": "Sanly Liu"},
+  {"name": "Irak", "code": "iq", "delegate": "Hanin Al Qoreishy"},
+  {"name": "Irlanda", "code": "ie", "delegate": "Aadya Srivastava"},
+  {"name": "Turks & Caicos", "code": "tc", "delegate": "Bereniece Dickenson"},
+  {"name": "Islas Vírgenes GB", "code": "vg", "delegate": "Olivia Freeman"},
+  {"name": "Islas Vírgenes US", "code": "vi", "delegate": "Britanny Robinson"},
+  {"name": "Israel", "code": "il", "delegate": "Melanie Shiraz"},
+  {"name": "Italia", "code": "it", "delegate": "Lucilla Nori"},
+  {"name": "Jamaica", "code": "jm", "delegate": "Gabrielle Henry"},
+  {"name": "Japón", "code": "jp", "delegate": "Kaori Hashimoto"},
+  {"name": "Kazajistán", "code": "kz", "delegate": "Dana Almassova"},
+  {"name": "Kosovo", "code": "xk", "delegate": "Dorea Shala"},
+  {"name": "Kirguistán", "code": "kg", "delegate": "Mary Kuvakova"},
+  {"name": "Laos", "code": "la", "delegate": "Lattana Munvilay"},
+  {"name": "Letonia", "code": "lv", "delegate": "Meldra Rosenberg"},
+  {"name": "Líbano", "code": "lb", "delegate": "Sarah Bou Jaoude"},
+  {"name": "Macao", "code": "mo", "delegate": "Kris Fong"},
+  {"name": "Malasia", "code": "my", "delegate": "Chloe Lim"},
+  {"name": "Malta", "code": "mt", "delegate": "Julia Cluett"},
+  {"name": "Martinica", "code": "mq", "delegate": "Celya Abatucci"},
+  {"name": "Mauricio", "code": "mu", "delegate": "Aurelie Alcindor"},
+  {"name": "Mayotte", "code": "yt", "delegate": "Nourya Aboutoihi"},
+  {"name": "México", "code": "mx", "delegate": "Fatima Bosch"},
+  {"name": "Moldavia", "code": "md", "delegate": "Mariana Ignat"},
+  {"name": "Myanmar", "code": "mm", "delegate": "Myat Yadanar Soe"},
+  {"name": "Namibia", "code": "na", "delegate": "Johanna Swartbooi"},
+  {"name": "Nepal", "code": "np", "delegate": "Sanya Adhikari"},
+  {"name": "Nicaragua", "code": "ni", "delegate": "Itza Castillo"},
+  {"name": "Níger", "code": "ne", "delegate": "Zoulahatou Amadou"},
+  {"name": "Nigeria", "code": "ng", "delegate": "Basil Onyinyechi"},
+  {"name": "Noruega", "code": "no", "delegate": "Leonora Lysglimt-Rødland"},
+  {"name": "Nueva Zelanda", "code": "nz", "delegate": "Abbigail Sturgin"},
+  {"name": "Países Bajos", "code": "nl", "delegate": "Nathalie Mogbelzada"},
+  {"name": "Pakistán", "code": "pk", "delegate": "Roma Riaz"},
+  {"name": "Palestina", "code": "ps", "delegate": "Nadeen Ayoub"},
+  {"name": "Panamá", "code": "pa", "delegate": "Mirna Caballini"},
+  {"name": "Paraguay", "code": "py", "delegate": "Yanina Gomez"},
+  {"name": "Perú", "code": "pe", "delegate": "Karla Bacigalupo"},
+  {"name": "Portugal", "code": "pt", "delegate": "Camila Vitorino"},
+  {"name": "Puerto Rico", "code": "pr", "delegate": "Zashely Alicea"},
+  {"name": "Rep Checa", "code": "cz", "delegate": "Michaela Tomanova"},
+  {"name": "Rep Dem Congo", "code": "cd", "delegate": "Dorcas Dienda"},
+  {"name": "Rep Dominicana", "code": "do", "delegate": "Jennifer Ventura"},
+  {"name": "Rumania", "code": "ro", "delegate": "Catalina Jacob"},
+  {"name": "Rusia", "code": "ru", "delegate": "Anastasia Venza"},
+  {"name": "Ruanda", "code": "rw", "delegate": "Solange Keita"},
+  {"name": "Santa Lucía", "code": "lc", "delegate": "Shianne Smith"},
+  {"name": "Senegal", "code": "sn", "delegate": "Camilla Diagne"},
+  {"name": "Singapur", "code": "sg", "delegate": "Annika Sager"},
+  {"name": "Sri Lanka", "code": "lk", "delegate": "Lihasha White"},
+  {"name": "Suecia", "code": "se", "delegate": "Daniella Lundqvist"},
+  {"name": "Suiza", "code": "ch", "delegate": "Naima Acosta"},
+  {"name": "Surinam", "code": "sr", "delegate": "Chiara Wijntuin"},
+  {"name": "Tailandia", "code": "th", "delegate": "Praveenar Singh"},
+  {"name": "Tanzania", "code": "tz", "delegate": "Naisae Yona"},
+  {"name": "Trinidad y Tobago", "code": "tt", "delegate": "Latifah Morris"},
+  {"name": "Turquía", "code": "tr", "delegate": "Ceren Arslan"},
+  {"name": "Ucrania", "code": "ua", "delegate": "Sofiya Tkachuk"},
+  {"name": "Uruguay", "code": "uy", "delegate": "Valeria Baladan"},
+  {"name": "Venezuela", "code": "ve", "delegate": "Stephany Abasali"},
+  {"name": "Vietnam", "code": "vn", "delegate": "Hng Giang Nguyn"},
+  {"name": "Zambia", "code": "zm", "delegate": "Kunda Mwamulima"},
+  {"name": "Zimbabue", "code": "zw", "delegate": "Lyshanda Moyas"}
+].sort((a, b) => a.name.localeCompare(b.name));
+
+
+// --- CONFIGURACIÓN DE FIREBASE (¡PON TUS DATOS AQUÍ!) ---
+const firebaseConfig = {
+  apiKey: "AIzaSyBjLGyOQXd0FE6vjqn_koVsCcWW76Bwz3A",
+  authDomain: "mu25-41abe.firebaseapp.com",
+  projectId: "mu25-41abe",
+  storageBucket: "mu25-41abe.firebasestorage.app",
+  messagingSenderId: "741861425274",
+  appId: "1:741861425274:web:6798c0ebe505ff053bfbc3",
+  measurementId: "G-31T9BGP25N"
+};
+
+
+// --- LÓGICA FIREBASE Y STATE MANAGEMENT ---
+let db;
+let currentUser = null;
+let userData = { top: [], scores: {} };
+let saveTimeout = null;
+
+window.addEventListener('firebase-ready', async () => {
+  try {
+    const app = window.fire.initializeApp(firebaseConfig);
+    db = window.fire.getFirestore(app);
+    checkAutoLogin();
+  } catch (e) {
+    console.error("Firebase Config Error:", e);
+    document.getElementById('login-msg').textContent = "Error en config Firebase";
+    document.getElementById('login-msg').style.display = 'block';
+  }
+});
+
+// --- LOGIN LOGIC ---
+const loginOverlay = document.getElementById('login-overlay');
+const appContainer = document.getElementById('app-container');
+const btnEnter = document.getElementById('btn-enter');
+const msgEl = document.getElementById('login-msg');
+
+function checkAutoLogin() {
+  const storedUser = localStorage.getItem('mu_user_session');
+  if (storedUser) performLogin(storedUser, null, true);
+}
+
+btnEnter.onclick = () => {
+  const u = document.getElementById('inp-username').value.trim().toLowerCase().replace(/\s/g, '');
+  const p = document.getElementById('inp-password').value.trim();
+  if (!u || !p) return showMsg("Faltan datos");
+  performLogin(u, p, false);
+};
+
+async function performLogin(user, pass, isAuto) {
+  if (!db) return showMsg("Error: BD no conectada");
+  if (!isAuto) showMsg("Verificando...", "#ccc");
+
+  try {
+    const docRef = window.fire.doc(db, "users", user);
+    const snap = await window.fire.getDoc(docRef);
+
+    if (snap.exists()) {
+      const data = snap.data();
+      if (isAuto || data.password === pass) {
+        finalizeLogin(user, data);
+      } else {
+        showMsg("Contraseña incorrecta");
+      }
+    } else {
+      if (isAuto) { localStorage.removeItem('mu_user_session'); return; }
+      const newUser = { password: pass, top: [], scores: {}, created: new Date().toISOString() };
+      await window.fire.setDoc(docRef, newUser);
+      finalizeLogin(user, newUser);
+    }
+  } catch (e) { console.error(e); showMsg("Error de conexión"); }
+}
+
+function finalizeLogin(user, data) {
+  currentUser = user;
+  userData.top = data.top || [];
+  userData.scores = data.scores || {};
+  localStorage.setItem('mu_user_session', user);
+  document.getElementById('display-user').textContent = user;
+  
+  loginOverlay.style.opacity = 0;
+  setTimeout(() => loginOverlay.style.display = 'none', 500);
+  appContainer.style.display = 'block';
+  setTimeout(() => appContainer.style.opacity = 1, 100);
+
+  // Iniciar Apps
+  initTopBuilder();
+  initScoring();
+
+  // Listener en tiempo real
+  window.fire.onSnapshot(window.fire.doc(db, "users", user), (doc) => {
+    const newData = doc.data();
+    if (!newData) return;
+    userData.top = newData.top || [];
+    userData.scores = newData.scores || {};
+    refreshTopUI(); 
+  });
+}
+
+function showMsg(txt, color='#ff4444') {
+  msgEl.textContent = txt; msgEl.style.color = color; msgEl.style.display = 'block';
+}
+
+document.getElementById('btn-logout').onclick = () => {
+  localStorage.removeItem('mu_user_session'); location.reload();
+};
+
+// --- LÓGICA DE GUARDADO ---
+function triggerSave() {
+  const statusEl = document.getElementById('save-status');
+  statusEl.classList.add('show');
+  if (saveTimeout) clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(async () => {
+    if (!currentUser || !db) return;
+    try {
+      await window.fire.updateDoc(window.fire.doc(db, "users", currentUser), {
+        top: userData.top,
+        scores: userData.scores
+      });
+      statusEl.classList.remove('show');
+    } catch (e) { console.error(e); }
+  }, 1000);
+}
+
+// --- Detección Móvil & Auto Scroll ---
+(function() {
+  if (window.innerWidth < 768) {
+    const modal = document.getElementById('mobile-warning');
+    if (modal) {
+      modal.style.display = 'flex';
+      document.getElementById('btn-close-mobile').onclick = () => { modal.style.display = 'none'; };
+    }
+  }
+})();
+
+let autoScrollSpeed = 0;
+document.addEventListener('dragover', (e) => {
+  const threshold = 100; 
+  if (e.clientY < threshold) autoScrollSpeed = -15; 
+  else if (e.clientY > window.innerHeight - threshold) autoScrollSpeed = 15;
+  else autoScrollSpeed = 0;
+});
+document.addEventListener('dragend', () => { autoScrollSpeed = 0; });
+function scrollLoop() {
+  if (autoScrollSpeed !== 0) window.scrollBy(0, autoScrollSpeed);
+  requestAnimationFrame(scrollLoop);
+}
+scrollLoop();
+
+
+// --- APP 1: TOP BUILDER (Adaptado a Firebase) ---
+function initTopBuilder() {
+  const RANGES = { A: [30,29,28,27,26,25,24,23,22,21], B: [20,19,18,17,16,15,14,13,12,11], C: [10,9,8,7,6,5,4], D: [3,2,1], E: [-1,-2,-3,-4,-5] };
+  let CURRENT_DRAG = null;
+  
+  // Modal Elements
+  const searchModal = document.getElementById('slot-search-modal');
+  const searchInput = document.getElementById('slot-search-input');
+  const searchResults = document.getElementById('slot-search-results');
+  const closeSearch = document.getElementById('close-slot-search');
+  let activeSearchRank = null;
+
+  // 1. Crear Slots
+  for (const band in RANGES) {
+    const col = (band === 'E') ? document.getElementById('banca-slots') : document.getElementById(`col-${band}`);   
+    col.innerHTML = '';
+    if (band !== 'E') { col.classList.add('slots'); col.style.setProperty('--rows', RANGES[band].length); }
+    RANGES[band].forEach(rank => {
+        const slot = document.createElement('div');
+        slot.className = 'slot'; slot.dataset.rank = rank; slot.dataset.band = band; slot.draggable = true;
+        
+        let rankDisplay = rank;
+        if (band === 'E') rankDisplay = `B${Math.abs(rank)}`;
+        else if(rank===1) rankDisplay="👑"; else if(rank===2) rankDisplay="2º"; else if(rank===3) rankDisplay="3º";
+        
+        slot.innerHTML = `<div class="num">${rankDisplay}</div><div class="photo"><img alt=""></div><div class="name">—</div>`;
+        
+        // Click para buscar (solo si vacío)
+        slot.addEventListener('click', () => {
+            const existing = userData.top.find(x => x.rank === rank);
+            if (!existing) openSearchModal(rank);
+        });
+
+        // Drag Logic
+        slot.addEventListener('dragstart', e => {
+            const existing = userData.top.find(x => x.rank === rank);
+            if (!existing) { e.preventDefault(); return; }
+            CURRENT_DRAG = { type: 'slot', rank: rank, data: existing };
+            slot.classList.add('ghost'); e.dataTransfer.effectAllowed = 'move';
+        });
+        slot.addEventListener('dragend', () => { slot.classList.remove('ghost'); CURRENT_DRAG = null; document.querySelectorAll('.drag-hover').forEach(x => x.classList.remove('drag-hover')); });
+        slot.addEventListener('dragover', e => { if (!CURRENT_DRAG) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; slot.classList.add('drag-hover'); });
+        slot.addEventListener('dragleave', () => slot.classList.remove('drag-hover'));
+        slot.addEventListener('drop', e => {
+            e.preventDefault(); slot.classList.remove('drag-hover');
+            if (!CURRENT_DRAG) return;
+            const targetRank = Number(slot.dataset.rank);
+            if (CURRENT_DRAG.type === 'card') assignRank(CURRENT_DRAG.data, targetRank);
+            else if (CURRENT_DRAG.type === 'slot') swapRanks(CURRENT_DRAG.rank, targetRank);
+        });
+        
+        col.appendChild(slot);
+    });
+  }
+
+  // 2. Search Modal Logic
+  closeSearch.onclick = () => { searchModal.style.display = 'none'; };
+  window.onclick = (e) => { if (e.target == searchModal) searchModal.style.display = 'none'; };
+  searchInput.addEventListener('input', () => renderSearchResults(searchInput.value));
+
+  function openSearchModal(rank) {
+    activeSearchRank = rank; searchInput.value = '';
+    renderSearchResults(''); searchModal.style.display = 'flex'; searchInput.focus();
+  }
+
+  function renderSearchResults(query) {
+    searchResults.innerHTML = '';
+    const assignedNames = new Set(userData.top.map(d => d.name));
+    const filtered = DELEGATES_DATA.filter(c => c.name.toLowerCase().includes(query.toLowerCase()) && !assignedNames.has(c.name));
+    
+    filtered.forEach(c => {
+      const item = document.createElement('div'); item.className = 'search-result-item';
+      item.innerHTML = `<img src="https://flagcdn.com/w40/${c.code.toLowerCase()}.png"> ${c.name}`;
+      item.onclick = () => { assignRank(c, activeSearchRank); searchModal.style.display = 'none'; };
+      searchResults.appendChild(item);
+    });
+  }
+
+  // 3. Global & Pool Logic
+  const pool = document.getElementById('pool');
+  pool.addEventListener('dragover', e => { if (CURRENT_DRAG?.type === 'slot') { e.preventDefault(); pool.classList.add('drag-hover'); } });
+  pool.addEventListener('dragleave', () => pool.classList.remove('drag-hover'));
+  pool.addEventListener('drop', e => { e.preventDefault(); pool.classList.remove('drag-hover'); if (CURRENT_DRAG?.type === 'slot') unassignRank(CURRENT_DRAG.rank); });
+
+  refreshTopUI();
+  setupButtons();
+}
+
+function assignRank(cData, rank) {
+  // Limpiar si ya existe
+  userData.top = userData.top.filter(x => x.name !== cData.name); // Quitar si estaba en otro lado
+  userData.top = userData.top.filter(x => x.rank !== rank); // Quitar quien ocupaba el sitio
+  userData.top.push({ rank: Number(rank), name: cData.name });
+  refreshTopUI(); triggerSave();
+}
+
+function swapRanks(r1, r2) {
+  const item1 = userData.top.find(x => x.rank === r1);
+  const item2 = userData.top.find(x => x.rank === r2);
+  
+  userData.top = userData.top.filter(x => x.rank !== r1 && x.rank !== r2);
+  if(item1) userData.top.push({ rank: r2, name: item1.name });
+  if(item2) userData.top.push({ rank: r1, name: item1.name });
+  refreshTopUI(); triggerSave();
+}
+
+function unassignRank(rank) {
+  userData.top = userData.top.filter(x => x.rank !== rank);
+  refreshTopUI(); triggerSave();
+}
+
+function refreshTopUI() {
+  window.refreshTopUI = refreshTopUI; // Global para acceder desde login
+  // Slots
+  document.querySelectorAll('#app-top-builder .slot').forEach(slot => {
+    const rank = Number(slot.dataset.rank);
+    const entry = userData.top.find(x => x.rank === rank);
+    const nameEl = slot.querySelector('.name'); 
+    const imgEl = slot.querySelector('.photo img');
+    
+    if (entry) {
+      const cData = DELEGATES_DATA.find(d => d.name === entry.name);
+      slot.classList.add('occupied');
+      if(cData) {
+          nameEl.innerHTML = `<img class="slot-flag" src="https://flagcdn.com/w40/${cData.code.toLowerCase()}.png"> ${cData.name}`;
+      } else {
+          nameEl.textContent = entry.name;
+      }
+    } else {
+      slot.classList.remove('occupied'); nameEl.textContent = '—';
+    }
+  });
+
+  // Pool
+  const cardsEl = document.getElementById('cards'); cardsEl.innerHTML = '';
+  const assignedNames = new Set(userData.top.map(d => d.name));
+  const available = DELEGATES_DATA.filter(c => !assignedNames.has(c.name));
+  
+  available.forEach(c => {
+    const card = document.createElement('div'); card.className = 'card'; card.draggable = true;
+    card.innerHTML = `<img class="card-flag" src="https://flagcdn.com/w40/${c.code.toLowerCase()}.png"> ${c.name}`; 
+    card.addEventListener('dragstart', () => { CURRENT_DRAG = { type: 'card', data: c }; card.classList.add('ghost'); });
+    card.addEventListener('dragend', () => { card.classList.remove('ghost'); CURRENT_DRAG = null; });
+    cardsEl.appendChild(card);
+  });
+
+  document.getElementById('pool-count').textContent = available.length;
+  document.getElementById('status-text').textContent = `${userData.top.length} Asignadas`;
+  filterPoolCards();
+}
+
+function filterPoolCards() {
+  const searchTerm = document.getElementById('search-bar').value.toLowerCase();
+  const cards = document.getElementById('cards').children;
+  for (const card of cards) {
+    card.style.display = card.textContent.toLowerCase().includes(searchTerm) ? 'flex' : 'none';
+  }
+}
+
+function setupButtons() {
+  document.getElementById('btn-clear').onclick = () => { userData.top = []; refreshTopUI(); triggerSave(); };
+  document.getElementById('btn-shuffle').onclick = () => { 
+      // Lógica simple de shuffle visual en pool (no afecta datos)
+      refreshTopUI(); 
+  };
+  document.getElementById('btn-sort').onclick = () => { refreshTopUI(); };
+  document.getElementById('btn-export').onclick = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(userData.top, null, 2));
+    const a = document.createElement('a'); a.href = dataStr; a.download = "miss_universe_top.json"; a.click();
+  };
+  document.getElementById('search-bar').addEventListener('input', filterPoolCards);
+  
+  // Import Logic
+  const fileInput = document.getElementById('file-import-top');
+  document.getElementById('btn-import').onclick = () => fileInput.click();
+  fileInput.onchange = (e) => {
+     const file = e.target.files[0]; if(!file) return;
+     const reader = new FileReader();
+     reader.onload = (event) => {
+        try { 
+            const arr = JSON.parse(event.target.result);
+            if(Array.isArray(arr)) { userData.top = arr; refreshTopUI(); triggerSave(); }
+        } catch(err) { alert("Error JSON"); }
+        e.target.value = null; 
+     };
+     reader.readAsText(file);
+  };
+}
+
+
+// --- APP 2: SCORING (Adaptado a Firebase) ---
+function initScoring() {
+  const container = document.querySelector('#app-scoring #card-container');
+  let currentIndex = 0;
+  
+  container.innerHTML = '';
+  DELEGATES_DATA.forEach((delegate, index) => { container.appendChild(createCardEl(delegate, index)); });
+  showCard(0); setupListeners(); updateRankingTable();
+
+  function createCardEl(delegate, index) {
+    const el = document.createElement('div');
+    el.className = 'score-card'; el.dataset.index = index; el.dataset.name = delegate.name;
+    const s = userData.scores[delegate.name] || {};
+    
+    el.innerHTML = `
+      <div class="card-header">
+        <img class="card-flag" src="https://flagcdn.com/w160/${delegate.code.toLowerCase()}.png">
+        <div class="card-names"><h2 class="card-country">${delegate.name}</h2><p class="card-delegate">${delegate.delegate}</p></div>
+      </div>
+      <div class="card-scores">
+        <div class="score-col"><h3>Preliminar</h3>
+          <div class="score-row"><label>Traje de Baño</label><input type="number" class="score-input" data-cat="pre_swim" min="0" max="10" step="0.1" value="${s.pre_swim||''}"></div>
+          <div class="score-row"><label>Traje de Noche</label><input type="number" class="score-input" data-cat="pre_gown" min="0" max="10" step="0.1" value="${s.pre_gown||''}"></div>
+        </div>
+        <div class="score-col"><h3>Final</h3>
+          <div class="score-row"><label>Traje de Baño</label><input type="number" class="score-input" data-cat="fin_swim" min="0" max="10" step="0.1" value="${s.fin_swim||''}"></div>
+          <div class="score-row"><label>Traje de Noche</label><input type="number" class="score-input" data-cat="fin_gown" min="0" max="10" step="0.1" value="${s.fin_gown||''}"></div>
+          <div class="score-row"><label>Pregunta</label><input type="number" class="score-input" data-cat="fin_q" min="0" max="10" step="0.1" value="${s.fin_q||''}"></div>
+        </div>
+      </div>`;
+    return el;
+  }
+
+  function showCard(index) {
+    const cards = container.children; if (!cards.length) return;
+    const currentCard = cards[currentIndex]; const newCard = cards[index];
+    if (index > currentIndex) { if (currentCard) currentCard.classList.add('exiting'); if (newCard) { newCard.classList.remove('exiting'); newCard.classList.add('active'); } } 
+    else { if (currentCard) currentCard.classList.remove('active'); if (newCard) { newCard.classList.remove('exiting'); newCard.classList.add('active'); } }
+    currentIndex = index;
+    document.getElementById('counter').textContent = `${currentIndex + 1} / ${DELEGATES_DATA.length}`;
+    document.getElementById('btn-prev').disabled = (currentIndex === 0);
+    document.getElementById('btn-next').disabled = (currentIndex === DELEGATES_DATA.length - 1);
+  }
+
+  function setupListeners() {
+    document.getElementById('btn-next').onclick = () => { if (currentIndex < DELEGATES_DATA.length - 1) showCard(currentIndex + 1); };
+    document.getElementById('btn-prev').onclick = () => { if (currentIndex > 0) showCard(currentIndex - 1); };
+    container.addEventListener('input', e => {
+      if (e.target.classList.contains('score-input')) {
+        const card = e.target.closest('.score-card');
+        let val = parseFloat(e.target.value);
+        if (isNaN(val)) val = ''; else if (val > 10) val = 10; else if (val < 0) val = 0;
+        
+        const name = card.dataset.name;
+        if (!userData.scores[name]) userData.scores[name] = {};
+        userData.scores[name][e.target.dataset.cat] = val;
+        
+        triggerSave(); updateRankingTable();
+      }
+    });
+  }
+
+  function updateRankingTable() {
+    const list = document.getElementById('ranking-list');
+    list.innerHTML = '';
+    const ranked = DELEGATES_DATA.map(d => {
+      const s = userData.scores[d.name] || {};
+      const total = (parseFloat(s.pre_swim)||0) + (parseFloat(s.pre_gown)||0) + (parseFloat(s.fin_swim)||0) + (parseFloat(s.fin_gown)||0) + (parseFloat(s.fin_q)||0);
+      return { ...d, total };
+    }).sort((a,b) => b.total - a.total).slice(0, 30);
+
+    ranked.forEach((d, i) => {
+       const row = document.createElement('div'); row.className = 'rank-row'; row.dataset.rank = i+1;
+       row.innerHTML = `<span class="rank-pos">${i+1}</span><span class="rank-name"><img class="rank-flag" src="https://flagcdn.com/w40/${d.code.toLowerCase()}.png"> ${d.name}</span><span class="rank-score">${d.total.toFixed(1)}</span>`;
+       list.appendChild(row);
+    });
+  }
+}
+
+
+// --- TABS & P5 ---
+(function() {
+  const tabs = document.querySelectorAll('.tab-btn'); const contents = document.querySelectorAll('.tab-content');
+  tabs.forEach(tab => tab.addEventListener('click', () => {
+     contents.forEach(c => c.classList.remove('active'));
+     document.getElementById(tab.dataset.tab).classList.add('active');
+     tabs.forEach(t => t.classList.remove('active'));
+     tab.classList.add('active');
+  }));
+})();
+
 function setup() { let cnv = createCanvas(windowWidth, windowHeight); cnv.parent('p5-background'); noStroke(); }
 function windowResized() { resizeCanvas(windowWidth, windowHeight); }
 let particles = [];
@@ -406,469 +974,6 @@ class Particle {
   update() { this.x += this.vx; this.y += this.vy; if (this.y > height - 100) this.alpha = min(this.alpha + 2, 50); else this.alpha = max(this.alpha - 0.5, 0); }
   show() { fill(255, 215, 0, this.alpha); circle(this.x, this.y, this.d); }
 }
-
-
-// --- App 1: Creador de Top ---
-function initTopBuilder() {
-  (function(){
-    let CONTESTANTS = [];
-    const RANK_MAP = new Map();
-    let CURRENT_DRAG = null;
-    const RANGES = { 
-      A: [30,29,28,27,26,25,24,23,22,21], 
-      B: [20,19,18,17,16,15,14,13,12,11], 
-      C: [10,9,8,7,6,5,4], 
-      D: [3,2,1],
-      E: [-1,-2,-3,-4,-5]
-    };
-
-    // --- *** CLAVE DE GUARDADO NUEVA (Versión Master V3) *** ---
-    const STORAGE_KEY = 'mu_top_master_v3'; 
-
-    function init() {
-      for (const band in RANGES) {
-        const col = (band === 'E')
-          ? document.getElementById('banca-slots')
-          : document.getElementById(`col-${band}`);   
-        col.innerHTML = '';
-        if (band !== 'E') {
-          col.classList.add('slots');
-          col.style.setProperty('--rows', RANGES[band].length);
-        }
-        RANGES[band].forEach(rank => col.appendChild(createSlotEl(band, rank)));
-      }
-      
-      // --- Carga usando delegates.json ---
-      fetch('delegates.json')
-        .then(r=>r.json())
-        .then(data => {
-          CONTESTANTS = data.map(d => typeof d === 'string' ? {name:d, code:''} : d)
-                            .sort((a,b) => a.name.localeCompare(b.name));
-          
-          const rawData = localStorage.getItem(STORAGE_KEY);
-          
-          if (rawData === null) {
-            // Primera visita: Cargar el top por defecto
-            console.log("TOP BUILDER: Primera visita, cargando MUTop.json por defecto...");
-            loadDefaultTop(); 
-          } else {
-            // Visita recurrente: Cargar desde localStorage (incluso si está vacío)
-            console.log("TOP BUILDER: Sesión cargada desde localStorage.");
-            loadFromStorage(rawData); // Pasar los datos
-            updateUI();
-          }
-      }).catch(e => { 
-        console.error(e); 
-        document.getElementById('status-text').textContent = 'Error cargando delegates.json'; 
-        updateUI(); 
-      });
-      
-      setupGlobalListeners(); 
-      setupButtons();
-    }
-
-    function loadDefaultTop() {
-      fetch('MUTop.json')
-        .then(r => r.json())
-        .then(defaultTop => {
-          for (const rankStr in defaultTop) {
-            const rank = Number(rankStr);
-            const name = defaultTop[rankStr];
-            if (name) {
-              const cData = CONTESTANTS.find(c => c.name === name);
-              if (cData) {
-                RANK_MAP.set(rank, cData);
-              } else {
-                console.warn(`Delegada "${name}" de MUTop.json no encontrada en delegates.json.`);
-                RANK_MAP.set(rank, { name: name, code: '' });
-              }
-            }
-          }
-          save(); // Guardar estado inicial
-          updateUI();
-        })
-        .catch(e => {
-          // No hacer nada si MUTop.json no existe
-          updateUI();
-        });
-    }
-
-    function flagURL(code) { return code ? `https://flagcdn.com/w40/${code.toLowerCase()}.png` : ''; }
-
-    function createSlotEl(band, rank) {
-      const el = document.createElement('div');
-      el.className = 'slot'; el.dataset.rank = rank; el.dataset.band = band; el.draggable = true;
-      let rankDisplay = rank;
-      if (band === 'E') rankDisplay = `B${Math.abs(rank)}`;
-      else if(rank===1) rankDisplay="👑"; 
-      else if(rank===2) rankDisplay="2º"; 
-      else if(rank===3) rankDisplay="3º";
-      el.innerHTML = `<div class="num">${rankDisplay}</div><div class="photo"><img alt=""></div><div class="name">—</div>`;
-      el.addEventListener('dragstart', e => {
-        const r = Number(el.dataset.rank); const cData = RANK_MAP.get(r);
-        if (!cData) { e.preventDefault(); return; }
-        CURRENT_DRAG = { type: 'slot', rank: r, data: cData };
-        el.classList.add('ghost'); e.dataTransfer.effectAllowed = 'move';
-      });
-      el.addEventListener('dragend', () => { el.classList.remove('ghost'); CURRENT_DRAG = null; document.querySelectorAll('.drag-hover').forEach(x => x.classList.remove('drag-hover')); });
-      el.addEventListener('dragover', e => { if (!CURRENT_DRAG) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drag-hover'); });
-      el.addEventListener('dragleave', () => el.classList.remove('drag-hover'));
-      el.addEventListener('drop', e => {
-        e.preventDefault(); el.classList.remove('drag-hover');
-        if (!CURRENT_DRAG) return;
-        const targetRank = Number(el.dataset.rank);
-        if (CURRENT_DRAG.type === 'card') assignRank(CURRENT_DRAG.data, targetRank);
-        else if (CURRENT_DRAG.type === 'slot') swapRanks(CURRENT_DRAG.rank, targetRank);
-      });
-      return el;
-    }
-
-    function setupGlobalListeners() {
-      const pool = document.getElementById('pool');
-      pool.addEventListener('dragover', e => { if (CURRENT_DRAG?.type === 'slot') { e.preventDefault(); pool.classList.add('drag-hover'); } });
-      pool.addEventListener('dragleave', () => pool.classList.remove('drag-hover'));
-      pool.addEventListener('drop', e => { e.preventDefault(); pool.classList.remove('drag-hover'); if (CURRENT_DRAG?.type === 'slot') unassignRank(CURRENT_DRAG.rank); });
-    }
-
-    function assignRank(cData, rank) {
-      for (const [r, d] of RANK_MAP.entries()) { if (d.name === cData.name) RANK_MAP.delete(r); }
-      RANK_MAP.set(Number(rank), cData); updateUI(); save();
-    }
-    function swapRanks(r1, r2) {
-      const d1 = RANK_MAP.get(r1), d2 = RANK_MAP.get(r2);
-      if (d1) RANK_MAP.set(r2, d1); else RANK_MAP.delete(r2);
-      if (d2) RANK_MAP.set(r1, d2); else RANK_MAP.delete(r1);
-      updateUI(); save();
-    }
-    function unassignRank(r) { RANK_MAP.delete(Number(r)); updateUI(); save(); }
-
-    function loadTopFromJSON(topData) {
-      if (!topData) return;
-      try {
-        RANK_MAP.clear(); 
-        let loadedCount = 0;
-        
-        for (const rankStr in topData) {
-          const rank = Number(rankStr);
-          const countryName = topData[rankStr];
-          
-          if (countryName && rank >= 1 && rank <= 30) {
-            const cData = CONTESTANTS.find(c => c.name === countryName);
-            
-            if (cData) {
-              RANK_MAP.set(rank, cData);
-              loadedCount++;
-            } else {
-              console.warn(`(Importar) Delegada "${countryName}" no encontrada en delegates.json.`);
-            }
-          }
-        }
-        console.log(`(Importar) Se cargaron ${loadedCount} delegadas.`);
-      } catch (e) {
-        console.error("Error al procesar el JSON del top:", e);
-        alert("Error: El archivo JSON no tiene el formato esperado.");
-      }
-      updateUI(); 
-      save();     
-    }
-
-    function updateUI() {
-      document.querySelectorAll('#app-top-builder .slot').forEach(slot => {
-        const rank = Number(slot.dataset.rank); const cData = RANK_MAP.get(rank);
-        const nameEl = slot.querySelector('.name'); const imgEl = slot.querySelector('.photo img');
-        if (cData) {
-          slot.classList.add('occupied');
-          nameEl.innerHTML = `<img class="slot-flag" src="${flagURL(cData.code)}" alt="${cData.code}"> ${cData.name}`;
-          if (imgEl) imgEl.src = `photos/${cData.name}.png`;
-        } else {
-          slot.classList.remove('occupied'); nameEl.textContent = '—';
-          if (imgEl) imgEl.removeAttribute('src');
-        }
-      });
-      const cardsEl = document.getElementById('cards'); cardsEl.innerHTML = '';
-      const assignedNames = new Set([...RANK_MAP.values()].map(d => d.name));
-      CONTESTANTS.filter(c => !assignedNames.has(c.name)).forEach(c => {
-        const card = document.createElement('div'); card.className = 'card'; card.draggable = true;
-        // Corregido: usar 'c' en lugar de 'cData'
-        card.innerHTML = `<img class="card-flag" src="${flagURL(c.code)}" alt="${c.code}"> ${c.name}`; 
-        
-        card.addEventListener('dragstart', () => { CURRENT_DRAG = { type: 'card', data: c }; card.classList.add('ghost'); });
-        card.addEventListener('dragend', () => { card.classList.remove('ghost'); CURRENT_DRAG = null; });
-        cardsEl.appendChild(card);
-      });
-      document.getElementById('pool-count').textContent = CONTESTANTS.length - RANK_MAP.size;
-      document.getElementById('status-text').textContent = `${RANK_MAP.size} Top Confirmado`;
-      filterPoolCards();
-    }
-
-    function filterPoolCards() {
-      const searchTerm = document.getElementById('search-bar').value.toLowerCase();
-      const cards = document.getElementById('cards').children;
-      let visibleCount = 0;
-      for (const card of cards) {
-        const name = card.textContent.toLowerCase();
-        const isVisible = name.includes(searchTerm);
-        card.style.display = isVisible ? 'flex' : 'none';
-        if (isVisible) visibleCount++;
-      }
-    }
-
-    function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify([...RANK_MAP])); }
-    function loadFromStorage(rawData) {
-      try {
-        const raw = JSON.parse(rawData); 
-        raw.forEach(([r, data]) => {
-          const cData = typeof data === 'string' ? {name: data, code: ''} : data;
-          RANK_MAP.set(Number(r), cData);
-        });
-      } catch(e){
-        console.error("Error al cargar desde localStorage:", e);
-      }
-    }
-    
-    function setupButtons() {
-      document.getElementById('btn-clear').onclick = () => { 
-        console.log('Limpiando el top...');
-        RANK_MAP.clear(); updateUI(); save(); 
-      };
-      document.getElementById('btn-shuffle').onclick = () => { CONTESTANTS.sort(()=>Math.random()-.5); updateUI(); };
-      document.getElementById('btn-sort').onclick = () => { CONTESTANTS.sort((a,b)=>a.name.localeCompare(b.name)); updateUI(); };
-      document.getElementById('btn-export').onclick = () => {
-        const d={}; for(let i=1;i<=30;i++) { const data = RANK_MAP.get(i); d[i] = data ? data.name : null; }
-        const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(d,null,2)],{type:'application/json'}));
-        a.download='miss_universe_top.json'; a.click();
-      };
-
-      const importBtn = document.getElementById('btn-import');
-      const fileInput = document.getElementById('file-import-top');
-      
-      importBtn.onclick = () => { fileInput.click(); };
-      
-      fileInput.onchange = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          try {
-            const topData = JSON.parse(event.target.result);
-            loadTopFromJSON(topData);
-          } catch (err) {
-            console.error("Error al leer o parsear el archivo:", err);
-            alert("Error: El archivo no es un JSON válido.");
-          }
-          e.target.value = null; 
-        };
-        reader.readAsText(file);
-      };
-
-      document.getElementById('search-bar').addEventListener('input', filterPoolCards);
-    }
-    init(); 
-  })();
-}
-
-
-// --- App 2: Votaciones en Vivo ---
-function initScoring() {
-  (function() {
-    let DELEGATES = [];
-    let SCORES = {};
-    let currentIndex = 0;
-    
-    // --- *** CLAVE DE GUARDADO NUEVA (Versión Master V3) *** ---
-    const STORAGE_KEY = 'mu_scores_master_v3'; 
-
-    const container = document.querySelector('#app-scoring #card-container');
-    const btnPrev = document.querySelector('#app-scoring #btn-prev');
-    const btnNext = document.querySelector('#app-scoring #btn-next');
-    const counterEl = document.querySelector('#app-scoring #counter');
-    const rankingListEl = document.querySelector('#app-scoring #ranking-list');
-
-    function init() {
-      if (!container) return;
-      loadScores();
-      fetch('delegates.json')
-        .then(r => r.json())
-        .then(data => {
-          DELEGATES = data.sort((a, b) => a.name.localeCompare(b.name));
-          container.innerHTML = ''; 
-          DELEGATES.forEach((delegate, index) => {
-            container.appendChild(createCardEl(delegate, index));
-          });
-          showCard(0);
-          setupListeners();
-          updateRankingTable(); 
-        })
-        .catch(e => {
-          console.error("VOTACIONES: Error cargando delegates.json", e);
-          if(counterEl) counterEl.textContent = "Error al cargar datos.";
-        });
-    }
-    
-    function createCardEl(delegate, index) {
-      const el = document.createElement('div');
-      el.className = 'score-card';
-      el.dataset.index = index;
-      el.dataset.name = delegate.name;
-      const delegateScores = SCORES[delegate.name] || {};
-      el.innerHTML = `
-        <div class="card-header">
-          <img class="card-flag" src="https://flagcdn.com/w160/${delegate.code.toLowerCase()}.png" alt="${delegate.name}">
-          <div class="card-names">
-            <h2 class="card-country">${delegate.name}</h2>
-            <p class="card-delegate">${delegate.delegate}</p>
-          </div>
-        </div>
-        <div class="card-scores">
-          <div class="score-col">
-            <h3>Preliminar</h3>
-            <div class="score-row">
-              <label for="pre-swim-${index}">Traje de Baño</label>
-              <input type="number" id="pre-swim-${index}" class="score-input" data-category="pre_swim" min="0" max="10" step="0.1" value="${delegateScores.pre_swim || ''}">
-            </div>
-            <div class="score-row">
-              <label for="pre-gown-${index}">Traje de Noche</label>
-              <input type="number" id="pre-gown-${index}" class="score-input" data-category="pre_gown" min="0" max="10" step="0.1" value="${delegateScores.pre_gown || ''}">
-            </div>
-          </div>
-          <div class="score-col">
-            <h3>Final</h3>
-            <div class="score-row">
-              <label for="fin-swim-${index}">Traje de Baño</label>
-              <input type="number" id="fin-swim-${index}" class="score-input" data-category="fin_swim" min="0" max="10" step="0.1" value="${delegateScores.fin_swim || ''}">
-            </div>
-            <div class="score-row">
-              <label for="fin-gown-${index}">Traje de Noche</label>
-              <input type="number" id="fin-gown-${index}" class="score-input" data-category="fin_gown" min="0" max="10" step="0.1" value="${delegateScores.fin_gown || ''}">
-            </div>
-            <div class="score-row">
-              <label for="fin-q-${index}">Preguntas</label>
-              <input type="number" id="fin-q-${index}" class="score-input" data-category="fin_q" min="0" max="10" step="0.1" value="${delegateScores.fin_q || ''}">
-            </div>
-          </div>
-        </div>
-      `;
-      return el;
-    }
-    
-    function showCard(index) {
-      const cards = container.children;
-      if (!cards.length) return;
-      const currentCard = cards[currentIndex];
-      const newCard = cards[index];
-      if (index > currentIndex) {
-        if (currentCard) currentCard.classList.add('exiting');
-        if (newCard) { newCard.classList.remove('exiting'); newCard.classList.add('active'); }
-      } else {
-        if (currentCard) currentCard.classList.remove('active');
-        if (newCard) { newCard.classList.remove('exiting'); newCard.classList.add('active'); }
-      }
-      currentIndex = index;
-      updateNav();
-    }
-    
-    function updateNav() {
-      if(counterEl) counterEl.textContent = `${currentIndex + 1} / ${DELEGATES.length}`;
-      if(btnPrev) btnPrev.disabled = (currentIndex === 0);
-      if(btnNext) btnNext.disabled = (currentIndex === DELEGATES.length - 1);
-    }
-    
-    function setupListeners() {
-      if(btnNext) btnNext.onclick = () => { if (currentIndex < DELEGATES.length - 1) showCard(currentIndex + 1); };
-      if(btnPrev) btnPrev.onclick = () => { if (currentIndex > 0) showCard(currentIndex - 1); };
-      container.addEventListener('input', e => {
-        if (e.target.classList.contains('score-input')) {
-          const card = e.target.closest('.score-card');
-          const delegateName = card.dataset.name;
-          const category = e.target.dataset.category;
-          let value = parseFloat(e.target.value);
-          if (isNaN(value)) { value = ''; } 
-          else if (value > 10) { value = 10; e.target.value = 10; }
-          else if (value < 0) { value = 0; e.target.value = 0; }
-          saveScore(delegateName, category, value);
-        }
-      });
-    }
-    
-    function saveScore(delegateName, category, value) {
-      if (!SCORES[delegateName]) { SCORES[delegateName] = {}; }
-      SCORES[delegateName][category] = value;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(SCORES));
-      updateRankingTable(); 
-    }
-    
-    function loadScores() {
-      const rawScores = localStorage.getItem(STORAGE_KEY);
-      if (rawScores) { SCORES = JSON.parse(rawScores); }
-    }
-
-    function updateRankingTable() {
-      if (!rankingListEl) return;
-      const rankedList = DELEGATES.map(delegate => {
-        const scores = SCORES[delegate.name] || {};
-        const total = (parseFloat(scores.pre_swim) || 0) +
-                      (parseFloat(scores.pre_gown) || 0) +
-                      (parseFloat(scores.fin_swim) || 0) +
-                      (parseFloat(scores.fin_gown) || 0) +
-                      (parseFloat(scores.fin_q) || 0);
-        return { ...delegate, totalScore: total };
-      });
-      const top30 = rankedList.sort((a, b) => b.totalScore - a.totalScore).slice(0, 30);
-      rankingListEl.innerHTML = ''; 
-      top30.forEach((delegate, index) => {
-        const rank = index + 1;
-        const row = document.createElement('div');
-        row.className = 'rank-row';
-        row.dataset.rank = rank;
-        row.innerHTML = `
-          <span class="rank-pos">${rank}</span>
-          <span class="rank-name">
-            <img class="rank-flag" src="https://flagcdn.com/w40/${delegate.code.toLowerCase()}.png" alt="">
-            ${delegate.name}
-          </span>
-          <span class="rank-score">${delegate.totalScore.toFixed(2)}</span>
-        `;
-        rankingListEl.appendChild(row);
-      });
-    }
-    init(); 
-  })();
-}
-
-// --- Manejador del Hub/Pestañas ---
-(function() {
-  let isTopBuilderInitialized = false;
-  let isScoringInitialized = false;
-  
-  const tabs = document.querySelectorAll('.tab-btn');
-  const contents = document.querySelectorAll('.tab-content');
-
-  function switchTab(tabId) {
-    contents.forEach(content => {
-      content.classList.remove('active');
-      if (content.id === tabId) content.classList.add('active');
-    });
-    tabs.forEach(tab => {
-      tab.classList.remove('active');
-      if (tab.dataset.tab === tabId) tab.classList.add('active');
-    });
-
-    if (tabId === 'app-top-builder' && !isTopBuilderInitialized) {
-      initTopBuilder();
-      isTopBuilderInitialized = true;
-    }
-    if (tabId === 'app-scoring' && !isScoringInitialized) {
-      initScoring();
-      isScoringInitialized = true;
-    }
-  }
-
-  tabs.forEach(tab => {
-    tab.addEventListener('click', () => { switchTab(tab.dataset.tab); });
-  });
-
-  setTimeout(() => { switchTab('app-top-builder'); }, 100);
-})();
 </script>
 </body>
 </html>
