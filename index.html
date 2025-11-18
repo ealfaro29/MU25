@@ -6,8 +6,11 @@
 <title>Miss Universe Hub - Community</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+
 <script type="module" src="app.js"></script>
 </head>
 <body>
@@ -23,6 +26,12 @@
     <div class="input-group"><label>Contraseña</label><input type="password" id="inp-password"></div>
     <button class="btn-login" id="btn-enter">ENTRAR</button>
     <div class="error-msg" id="login-msg"></div>
+  </div>
+</div>
+
+<div id="mobile-warning" class="mobile-overlay" style="display:none">
+  <div class="mobile-msg">
+    <h2>⚠️ Atención</h2><p>Esta app está optimizada para PC/Tablet.</p><button id="btn-close-mobile">Entendido</button>
   </div>
 </div>
 
@@ -44,36 +53,44 @@
     <div id="app-top-builder" class="tab-content active">
       <div class="app">
         <div class="topbar"><h1 class="title">Miss Universe Official Top</h1><div class="hint">Arrastra a tus favoritas</div></div>
+        
         <div class="grid">
           <section class="col"><h2>Ronda 1 (30-22)</h2><div id="col-A"></div></section>
           <section class="col"><h2>Ronda 2 (21-13)</h2><div id="col-B"></div></section>
           <section class="col"><h2>Top 12 (12-4)</h2> <div id="col-C"></div></section>
           <section class="col"><h2>Top 3 Final</h2>  <div id="col-D"></div></section>
         </div>
+
         <section class="pool" id="pool">
           <div class="pool-header"><h3>Delegadas Disponibles (<span id="pool-count">0</span>)</h3><input type="search" id="search-bar" placeholder="Buscar..."></div>
           <div class="banca-container"><h4>Banca</h4><div id="banca-slots"></div></div>
           <div id="cards" class="cards"></div>
         </section>
+
         <div class="foot">
           <div class="bar">
-            <button id="btn-clear" class="btn">Limpiar</button><span class="sep"></span>
-            <button id="btn-shuffle" class="btn">Mezclar</button><button id="btn-sort" class="btn">A-Z</button><span class="sep"></span>
-            <button id="btn-import" class="btn">Importar</button><button id="btn-export" class="btn primary">Exportar</button>
+            <button id="btn-clear" class="btn">Limpiar</button>
+            <span class="sep"></span>
+            <button id="btn-shuffle" class="btn">Mezclar</button>
+            <button id="btn-sort" class="btn">A-Z</button>
+            <span class="sep"></span>
+            <div class="export-group" style="display:flex; gap:10px; align-items:center;">
+                <span class="status" style="font-size:12px; color:#aaa;">Compartir IG:</span>
+                <button class="btn primary" id="btn-img-30">Top 30</button>
+                <button class="btn primary" id="btn-img-12">Top 12</button>
+                <button class="btn primary" id="btn-img-5">Top 5</button>
+            </div>
             <span class="status" id="status-text">...</span>
           </div>
         </div>
       </div>
-      <input type="file" id="file-import-top" accept=".json" style="display: none;">
     </div>
 
     <div id="app-scoring" class="tab-content">
       <div class="app">
         <div class="topbar"><h1 class="title">Votaciones</h1></div>
         <div class="carousel-nav">
-          <button id="btn-prev" class="nav-btn">Prev</button>
-          <div id="counter">0 / 0</div>
-          <button id="btn-next" class="nav-btn">Next</button>
+          <button id="btn-prev" class="nav-btn">Prev</button><div id="counter">0 / 0</div><button id="btn-next" class="nav-btn">Next</button>
         </div>
         <div class="carousel-wrapper"><div id="card-container"></div></div>
         <div class="ranking-container"><h2>Ranking en Vivo (Top 30)</h2><div id="ranking-list"></div></div>
@@ -81,13 +98,27 @@
     </div>
 </div>
 
+<div id="export-stage-container" style="position:fixed; left:-9999px; top:0;">
+    <div id="export-stage">
+        <div class="export-header"><h1>My Prediction</h1><h2>Miss Universe 2025</h2></div>
+        <div id="export-grid" class="export-grid"></div>
+        <div class="export-footer"><p>Creado por: <span id="export-username">User</span></p><p>#MissUniverse</p></div>
+    </div>
+</div>
+
 <script>
+// TABS & P5 Background Logic
 (function() {
   const tabs=document.querySelectorAll('.tab-btn'), contents=document.querySelectorAll('.tab-content');
   tabs.forEach(tab=>tab.addEventListener('click',()=>{
      contents.forEach(c=>c.classList.remove('active')); tabs.forEach(t=>t.classList.remove('active'));
      document.getElementById(tab.dataset.tab).classList.add('active'); tab.classList.add('active');
   }));
+  // Mobile Warning Closure
+  if(window.innerWidth<768){
+     const m=document.getElementById('mobile-warning'); 
+     if(m){ m.style.display='flex'; document.getElementById('btn-close-mobile').onclick=()=>{m.style.display='none'};}
+  }
 })();
 function setup(){let cnv=createCanvas(windowWidth,windowHeight);cnv.parent('p5-background');noStroke();}
 function windowResized(){resizeCanvas(windowWidth,windowHeight);}

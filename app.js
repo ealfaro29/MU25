@@ -19,6 +19,7 @@ let db;
 let currentUser = null;
 let userData = { top: [], scores: {} };
 let saveTimeout = null;
+let MODULE_DRAG = null; // Variable para drag & drop
 
 // --- 3. INICIALIZACIÓN ---
 try {
@@ -29,7 +30,7 @@ try {
   console.error("Firebase Error:", e);
 }
 
-// --- 4. SISTEMA DE LOGIN ---
+// --- 4. LOGIN ---
 const loginOverlay = document.getElementById('login-overlay');
 const appContainer = document.getElementById('app-container');
 const btnEnter = document.getElementById('btn-enter');
@@ -86,18 +87,15 @@ function finalizeLogin(user, data) {
   initTopBuilder();
   initScoring();
 
-  // Listener Real-time
   onSnapshot(doc(db, "users", user), (docSnap) => {
     const newData = docSnap.data();
     if (!newData) return;
-    // Actualizar localmente si cambió en la nube (y no fuimos nosotros)
     if(JSON.stringify(newData.top) !== JSON.stringify(userData.top)) {
        userData.top = newData.top || [];
        refreshTopUI();
     }
     if(JSON.stringify(newData.scores) !== JSON.stringify(userData.scores)) {
        userData.scores = newData.scores || {};
-       // Score UI se actualiza sola al navegar
     }
   });
 }
@@ -110,7 +108,7 @@ document.getElementById('btn-logout').onclick = () => {
   localStorage.removeItem('mu_user_session'); location.reload();
 };
 
-// --- 5. GUARDADO AUTOMÁTICO ---
+// --- 5. GUARDADO ---
 function triggerSave() {
   const statusEl = document.getElementById('save-status');
   statusEl.classList.add('show');
@@ -118,19 +116,15 @@ function triggerSave() {
   saveTimeout = setTimeout(async () => {
     if (!currentUser || !db) return;
     try {
-      await updateDoc(doc(db, "users", currentUser), {
-        top: userData.top,
-        scores: userData.scores
-      });
+      await updateDoc(doc(db, "users", currentUser), { top: userData.top, scores: userData.scores });
       statusEl.classList.remove('show');
     } catch (e) { console.error(e); }
   }, 1000);
 }
 
 
-// --- 6. APP 1: TOP BUILDER (NUEVA LÓGICA TOP 12) ---
+// --- 6. TOP BUILDER (LOGICA TOP 12) ---
 function initTopBuilder() {
-  // RANGOS ACTUALIZADOS: 9, 9, 9, 3 = 30
   const RANGES = { 
     A: [30,29,28,27,26,25,24,23,22], 
     B: [21,20,19,18,17,16,15,14,13], 
@@ -138,7 +132,6 @@ function initTopBuilder() {
     D: [3,2,1], 
     E: [-1,-2,-3,-4,-5] 
   };
-  let CURRENT_DRAG = null;
   
   const searchModal = document.getElementById('slot-search-modal');
   const searchInput = document.getElementById('slot-search-input');
@@ -163,45 +156,37 @@ function initTopBuilder() {
         
         slot.addEventListener('click', () => {
             const existing = userData.top.find(x => x.rank === rank);
-            if (!existing) openSearchModal(rank);
+            if (!existing) { activeSearchRank = rank; searchInput.value=''; renderSearchResults(''); searchModal.style.display='flex'; searchInput.focus(); }
         });
 
         slot.addEventListener('dragstart', e => {
             const existing = userData.top.find(x => x.rank === rank);
             if (!existing) { e.preventDefault(); return; }
-            CURRENT_DRAG = { type: 'slot', rank: rank, data: existing };
+            MODULE_DRAG = { type: 'slot', rank: rank, data: existing };
             slot.classList.add('ghost'); e.dataTransfer.effectAllowed = 'move';
         });
-        slot.addEventListener('dragend', () => { slot.classList.remove('ghost'); CURRENT_DRAG = null; document.querySelectorAll('.drag-hover').forEach(x => x.classList.remove('drag-hover')); });
-        slot.addEventListener('dragover', e => { if (!CURRENT_DRAG) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; slot.classList.add('drag-hover'); });
+        slot.addEventListener('dragend', () => { slot.classList.remove('ghost'); MODULE_DRAG = null; document.querySelectorAll('.drag-hover').forEach(x => x.classList.remove('drag-hover')); });
+        slot.addEventListener('dragover', e => { if (!MODULE_DRAG) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; slot.classList.add('drag-hover'); });
         slot.addEventListener('dragleave', () => slot.classList.remove('drag-hover'));
         slot.addEventListener('drop', e => {
             e.preventDefault(); slot.classList.remove('drag-hover');
-            if (!CURRENT_DRAG) return;
+            if (!MODULE_DRAG) return;
             const targetRank = Number(slot.dataset.rank);
-            if (CURRENT_DRAG.type === 'card') assignRank(CURRENT_DRAG.data, targetRank);
-            else if (CURRENT_DRAG.type === 'slot') swapRanks(CURRENT_DRAG.rank, targetRank);
+            if (MODULE_DRAG.type === 'card') assignRank(MODULE_DRAG.data, targetRank);
+            else if (MODULE_DRAG.type === 'slot') swapRanks(MODULE_DRAG.rank, targetRank);
         });
-        
         col.appendChild(slot);
     });
   }
 
-  // Search Logic
   closeSearch.onclick = () => { searchModal.style.display = 'none'; };
   window.onclick = (e) => { if (e.target == searchModal) searchModal.style.display = 'none'; };
   searchInput.addEventListener('input', () => renderSearchResults(searchInput.value));
-
-  function openSearchModal(rank) {
-    activeSearchRank = rank; searchInput.value = '';
-    renderSearchResults(''); searchModal.style.display = 'flex'; searchInput.focus();
-  }
 
   function renderSearchResults(query) {
     searchResults.innerHTML = '';
     const assignedNames = new Set(userData.top.map(d => d.name));
     const filtered = DELEGATES_DATA.filter(c => c.name.toLowerCase().includes(query.toLowerCase()) && !assignedNames.has(c.name));
-    
     filtered.forEach(c => {
       const item = document.createElement('div'); item.className = 'search-result-item';
       item.innerHTML = `<img src="https://flagcdn.com/w40/${c.code.toLowerCase()}.png"> ${c.name}`;
@@ -210,11 +195,10 @@ function initTopBuilder() {
     });
   }
 
-  // Pool Logic
   const pool = document.getElementById('pool');
-  pool.addEventListener('dragover', e => { if (CURRENT_DRAG?.type === 'slot') { e.preventDefault(); pool.classList.add('drag-hover'); } });
+  pool.addEventListener('dragover', e => { if (MODULE_DRAG?.type === 'slot') { e.preventDefault(); pool.classList.add('drag-hover'); } });
   pool.addEventListener('dragleave', () => pool.classList.remove('drag-hover'));
-  pool.addEventListener('drop', e => { e.preventDefault(); pool.classList.remove('drag-hover'); if (CURRENT_DRAG?.type === 'slot') unassignRank(CURRENT_DRAG.rank); });
+  pool.addEventListener('drop', e => { e.preventDefault(); pool.classList.remove('drag-hover'); if (MODULE_DRAG?.type === 'slot') unassignRank(MODULE_DRAG.rank); });
 
   refreshTopUI();
   setupButtons();
@@ -242,98 +226,88 @@ function unassignRank(rank) {
 }
 
 function refreshTopUI() {
-  // Slots
   document.querySelectorAll('#app-top-builder .slot').forEach(slot => {
     const rank = Number(slot.dataset.rank);
     const entry = userData.top.find(x => x.rank === rank);
     const nameEl = slot.querySelector('.name'); 
     const imgEl = slot.querySelector('.photo img');
-    
     if (entry) {
       const cData = DELEGATES_DATA.find(d => d.name === entry.name);
       slot.classList.add('occupied');
-      if(cData) {
-          nameEl.innerHTML = `<img class="slot-flag" src="https://flagcdn.com/w40/${cData.code.toLowerCase()}.png"> ${cData.name}`;
-      } else {
-          nameEl.textContent = entry.name;
-      }
+      if(cData) nameEl.innerHTML = `<img class="slot-flag" src="https://flagcdn.com/w40/${cData.code.toLowerCase()}.png"> ${cData.name}`;
+      else nameEl.textContent = entry.name;
     } else {
       slot.classList.remove('occupied'); nameEl.textContent = '—';
     }
   });
 
-  // Pool
   const cardsEl = document.getElementById('cards'); cardsEl.innerHTML = '';
   const assignedNames = new Set(userData.top.map(d => d.name));
   const available = DELEGATES_DATA.filter(c => !assignedNames.has(c.name));
-  let CURRENT_DRAG_CARD = null; // Local drag var for cards
   
   available.forEach(c => {
     const card = document.createElement('div'); card.className = 'card'; card.draggable = true;
     card.innerHTML = `<img class="card-flag" src="https://flagcdn.com/w40/${c.code.toLowerCase()}.png"> ${c.name}`; 
-    card.addEventListener('dragstart', () => { 
-        // Re-use global CURRENT_DRAG if possible or pass data via a bridge
-        // For simplicity, we rely on the drop handler reading `type: card`
-        // We need to access the module scope variable
-    });
-    // Note: In module scope, we need to be careful with drag/drop. 
-    // Re-implementing card dragstart inside initTopBuilder loop was cleaner.
-    // Let's fix this by moving this loop inside refreshTopUI fully.
-    
-    // FIX:
-    card.addEventListener('dragstart', () => { 
-         // Since CURRENT_DRAG is local to initTopBuilder, we can't set it here easily unless we expose a setter 
-         // or use a module-level var. Let's use dataTransfer for cleaner separation.
-         // But since we used a variable before, let's assume this function is running inside initTopBuilder context?
-         // No, refreshTopUI is separate.
-         // Let's trigger a custom event or simply use a module-level var.
-    });
+    card.addEventListener('dragstart', () => { MODULE_DRAG = { type: 'card', data: c }; card.classList.add('ghost'); });
+    card.addEventListener('dragend', () => { card.classList.remove('ghost'); MODULE_DRAG = null; });
+    cardsEl.appendChild(card);
   });
-  
-  // REFACTOR: refreshTopUI needs to be inside initTopBuilder scope OR CURRENT_DRAG needs to be module-level.
-  // I'll move CURRENT_DRAG to module level (below imports) to fix this.
+  document.getElementById('pool-count').textContent = available.length;
+  filterPoolCards();
 }
-
-// --- FIXED SCOPE FOR DRAG VAR ---
-let MODULE_DRAG = null; 
-// Update initTopBuilder to use MODULE_DRAG instead of local let CURRENT_DRAG
 
 function setupButtons() {
   document.getElementById('btn-clear').onclick = () => { userData.top = []; refreshTopUI(); triggerSave(); };
-  document.getElementById('btn-shuffle').onclick = () => { refreshTopUI(); }; // Visual shuffle only
+  document.getElementById('btn-shuffle').onclick = () => { refreshTopUI(); };
   document.getElementById('btn-sort').onclick = () => { refreshTopUI(); };
-  document.getElementById('btn-export').onclick = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(userData.top, null, 2));
-    const a = document.createElement('a'); a.href = dataStr; a.download = "miss_universe_top.json"; a.click();
-  };
   document.getElementById('search-bar').addEventListener('input', filterPoolCards);
   
-  const fileInput = document.getElementById('file-import-top');
-  document.getElementById('btn-import').onclick = () => fileInput.click();
-  fileInput.onchange = (e) => {
-     const file = e.target.files[0]; if(!file) return;
-     const reader = new FileReader();
-     reader.onload = (event) => {
-        try { 
-            const arr = JSON.parse(event.target.result);
-            if(Array.isArray(arr)) { userData.top = arr; refreshTopUI(); triggerSave(); }
-        } catch(err) { alert("Error JSON"); }
-        e.target.value = null; 
-     };
-     reader.readAsText(file);
-  };
+  // EXPORT IMAGES HANDLERS
+  document.getElementById('btn-img-30').onclick = () => generateImage(30);
+  document.getElementById('btn-img-12').onclick = () => generateImage(12);
+  document.getElementById('btn-img-5').onclick = () => generateImage(5);
 }
 
 function filterPoolCards() {
   const searchTerm = document.getElementById('search-bar').value.toLowerCase();
   const cards = document.getElementById('cards').children;
-  for (const card of cards) {
-    card.style.display = card.textContent.toLowerCase().includes(searchTerm) ? 'flex' : 'none';
-  }
+  for (const card of cards) card.style.display = card.textContent.toLowerCase().includes(searchTerm) ? 'flex' : 'none';
+}
+
+// --- GENERATE IMAGE (INSTAGRAM 4:5) ---
+async function generateImage(limit) {
+    const statusEl = document.getElementById('status-text');
+    statusEl.textContent = "Generando...";
+    const exportStage = document.getElementById('export-stage');
+    const exportGrid = document.getElementById('export-grid');
+    const exportUser = document.getElementById('export-username');
+    
+    const sortedTop = userData.top.filter(x => x.rank > 0 && x.rank <= 30).sort((a, b) => a.rank - b.rank).slice(0, limit);
+    if (sortedTop.length === 0) { alert("Tu top está vacío."); return; }
+
+    exportGrid.innerHTML = '';
+    exportUser.textContent = currentUser || "Fan";
+    if(limit === 5) exportStage.classList.add('top-5-mode'); else exportStage.classList.remove('top-5-mode');
+
+    sortedTop.forEach(item => {
+        const dData = DELEGATES_DATA.find(d => d.name === item.name);
+        if(!dData) return;
+        const div = document.createElement('div'); div.className = 'export-item'; div.dataset.rank = item.rank;
+        const rankDisplay = item.rank === 1 ? '👑' : item.rank;
+        div.innerHTML = `<div class="export-rank">${rankDisplay}</div><img class="export-flag" src="https://flagcdn.com/w80/${dData.code.toLowerCase()}.png"><div class="export-name">${dData.name}</div>`;
+        exportGrid.appendChild(div);
+    });
+
+    try {
+        const canvas = await window.html2canvas(exportStage, { scale: 1, useCORS: true, backgroundColor: "#000000" });
+        const link = document.createElement('a'); link.download = `MyTop${limit}_MissUniverse.png`;
+        link.href = canvas.toDataURL('image/png'); link.click();
+        statusEl.textContent = "Descargada ✔";
+    } catch (err) { console.error(err); statusEl.textContent = "Error"; }
 }
 
 
-// --- 7. APP 2: SCORING ---
+// --- 7. SCORING ---
 function initScoring() {
   const container = document.querySelector('#app-scoring #card-container');
   let currentIndex = 0;
@@ -342,24 +316,13 @@ function initScoring() {
   showCard(0); setupListeners(); updateRankingTable();
 
   function createCardEl(delegate, index) {
-    const el = document.createElement('div');
-    el.className = 'score-card'; el.dataset.index = index; el.dataset.name = delegate.name;
+    const el = document.createElement('div'); el.className = 'score-card'; el.dataset.index = index; el.dataset.name = delegate.name;
     const s = userData.scores[delegate.name] || {};
     el.innerHTML = `
-      <div class="card-header">
-        <img class="card-flag" src="https://flagcdn.com/w160/${delegate.code.toLowerCase()}.png">
-        <div class="card-names"><h2 class="card-country">${delegate.name}</h2><p class="card-delegate">${delegate.delegate}</p></div>
-      </div>
+      <div class="card-header"><img class="card-flag" src="https://flagcdn.com/w160/${delegate.code.toLowerCase()}.png"><div class="card-names"><h2 class="card-country">${delegate.name}</h2><p class="card-delegate">${delegate.delegate}</p></div></div>
       <div class="card-scores">
-        <div class="score-col"><h3>Preliminar</h3>
-          <div class="score-row"><label>Traje de Baño</label><input type="number" class="score-input" data-cat="pre_swim" min="0" max="10" step="0.1" value="${s.pre_swim||''}"></div>
-          <div class="score-row"><label>Traje de Noche</label><input type="number" class="score-input" data-cat="pre_gown" min="0" max="10" step="0.1" value="${s.pre_gown||''}"></div>
-        </div>
-        <div class="score-col"><h3>Final</h3>
-          <div class="score-row"><label>Traje de Baño</label><input type="number" class="score-input" data-cat="fin_swim" min="0" max="10" step="0.1" value="${s.fin_swim||''}"></div>
-          <div class="score-row"><label>Traje de Noche</label><input type="number" class="score-input" data-cat="fin_gown" min="0" max="10" step="0.1" value="${s.fin_gown||''}"></div>
-          <div class="score-row"><label>Pregunta</label><input type="number" class="score-input" data-cat="fin_q" min="0" max="10" step="0.1" value="${s.fin_q||''}"></div>
-        </div>
+        <div class="score-col"><h3>Preliminar</h3><div class="score-row"><label>Traje de Baño</label><input type="number" class="score-input" data-cat="pre_swim" min="0" max="10" step="0.1" value="${s.pre_swim||''}"></div><div class="score-row"><label>Traje de Noche</label><input type="number" class="score-input" data-cat="pre_gown" min="0" max="10" step="0.1" value="${s.pre_gown||''}"></div></div>
+        <div class="score-col"><h3>Final</h3><div class="score-row"><label>Traje de Baño</label><input type="number" class="score-input" data-cat="fin_swim" min="0" max="10" step="0.1" value="${s.fin_swim||''}"></div><div class="score-row"><label>Traje de Noche</label><input type="number" class="score-input" data-cat="fin_gown" min="0" max="10" step="0.1" value="${s.fin_gown||''}"></div><div class="score-row"><label>Pregunta</label><input type="number" class="score-input" data-cat="fin_q" min="0" max="10" step="0.1" value="${s.fin_q||''}"></div></div>
       </div>`;
     return el;
   }
@@ -405,43 +368,4 @@ function initScoring() {
        list.appendChild(row);
     });
   }
-}
-
-// --- UTILIDADES (Refresh UI + Drag Fix) ---
-// Mover refreshTopUI fuera de initTopBuilder y usar MODULE_DRAG
-function refreshTopUI() {
-  document.querySelectorAll('#app-top-builder .slot').forEach(slot => {
-    const rank = Number(slot.dataset.rank);
-    const entry = userData.top.find(x => x.rank === rank);
-    const nameEl = slot.querySelector('.name'); 
-    if (entry) {
-      const cData = DELEGATES_DATA.find(d => d.name === entry.name);
-      slot.classList.add('occupied');
-      if(cData) nameEl.innerHTML = `<img class="slot-flag" src="https://flagcdn.com/w40/${cData.code.toLowerCase()}.png"> ${cData.name}`;
-      else nameEl.textContent = entry.name;
-    } else {
-      slot.classList.remove('occupied'); nameEl.textContent = '—';
-    }
-  });
-
-  const cardsEl = document.getElementById('cards'); cardsEl.innerHTML = '';
-  const assignedNames = new Set(userData.top.map(d => d.name));
-  const available = DELEGATES_DATA.filter(c => !assignedNames.has(c.name));
-  
-  available.forEach(c => {
-    const card = document.createElement('div'); card.className = 'card'; card.draggable = true;
-    card.innerHTML = `<img class="card-flag" src="https://flagcdn.com/w40/${c.code.toLowerCase()}.png"> ${c.name}`; 
-    card.addEventListener('dragstart', () => { 
-        MODULE_DRAG = { type: 'card', data: c }; 
-        card.classList.add('ghost'); 
-    });
-    card.addEventListener('dragend', () => { 
-        card.classList.remove('ghost'); 
-        MODULE_DRAG = null; 
-    });
-    cardsEl.appendChild(card);
-  });
-  document.getElementById('pool-count').textContent = available.length;
-  document.getElementById('status-text').textContent = `${userData.top.length} Asignadas`;
-  filterPoolCards();
 }
