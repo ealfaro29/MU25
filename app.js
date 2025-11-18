@@ -19,7 +19,7 @@ let db;
 let currentUser = null;
 let userData = { top: [], scores: {} };
 let saveTimeout = null;
-let MODULE_DRAG = null; // Variable para drag & drop
+let MODULE_DRAG = null; 
 
 // --- 3. INICIALIZACIÓN ---
 try {
@@ -41,12 +41,14 @@ function checkAutoLogin() {
   if (storedUser) performLogin(storedUser, null, true);
 }
 
-btnEnter.onclick = () => {
-  const u = document.getElementById('inp-username').value.trim().toLowerCase().replace(/\s/g, '');
-  const p = document.getElementById('inp-password').value.trim();
-  if (!u || !p) return showMsg("Faltan datos");
-  performLogin(u, p, false);
-};
+if(btnEnter) {
+    btnEnter.onclick = () => {
+      const u = document.getElementById('inp-username').value.trim().toLowerCase().replace(/\s/g, '');
+      const p = document.getElementById('inp-password').value.trim();
+      if (!u || !p) return showMsg("Faltan datos");
+      performLogin(u, p, false);
+    };
+}
 
 async function performLogin(user, pass, isAuto) {
   if (!db) return showMsg("Error: BD no conectada");
@@ -79,10 +81,14 @@ function finalizeLogin(user, data) {
   localStorage.setItem('mu_user_session', user);
   document.getElementById('display-user').textContent = user;
   
-  loginOverlay.style.opacity = 0;
-  setTimeout(() => loginOverlay.style.display = 'none', 500);
-  appContainer.style.display = 'block';
-  setTimeout(() => appContainer.style.opacity = 1, 100);
+  if(loginOverlay) {
+      loginOverlay.style.opacity = 0;
+      setTimeout(() => loginOverlay.style.display = 'none', 500);
+  }
+  if(appContainer) {
+      appContainer.style.display = 'block';
+      setTimeout(() => appContainer.style.opacity = 1, 100);
+  }
 
   initTopBuilder();
   initScoring();
@@ -101,23 +107,29 @@ function finalizeLogin(user, data) {
 }
 
 function showMsg(txt, color='#ff4444') {
-  msgEl.textContent = txt; msgEl.style.color = color; msgEl.style.display = 'block';
+  if(msgEl) {
+      msgEl.textContent = txt; msgEl.style.color = color; msgEl.style.display = 'block';
+  }
 }
 
-document.getElementById('btn-logout').onclick = () => {
-  localStorage.removeItem('mu_user_session'); location.reload();
-};
+const btnLogout = document.getElementById('btn-logout');
+if(btnLogout) {
+    btnLogout.onclick = () => {
+      localStorage.removeItem('mu_user_session'); location.reload();
+    };
+}
 
 // --- 5. GUARDADO ---
 function triggerSave() {
   const statusEl = document.getElementById('save-status');
-  statusEl.classList.add('show');
+  if(statusEl) statusEl.classList.add('show');
+  
   if (saveTimeout) clearTimeout(saveTimeout);
   saveTimeout = setTimeout(async () => {
     if (!currentUser || !db) return;
     try {
       await updateDoc(doc(db, "users", currentUser), { top: userData.top, scores: userData.scores });
-      statusEl.classList.remove('show');
+      if(statusEl) statusEl.classList.remove('show');
     } catch (e) { console.error(e); }
   }, 1000);
 }
@@ -141,6 +153,8 @@ function initTopBuilder() {
 
   for (const band in RANGES) {
     const col = (band === 'E') ? document.getElementById('banca-slots') : document.getElementById(`col-${band}`);   
+    if(!col) continue;
+    
     col.innerHTML = '';
     if (band !== 'E') { col.classList.add('slots'); col.style.setProperty('--rows', RANGES[band].length); }
     
@@ -179,14 +193,16 @@ function initTopBuilder() {
     });
   }
 
-  closeSearch.onclick = () => { searchModal.style.display = 'none'; };
+  if(closeSearch) closeSearch.onclick = () => { searchModal.style.display = 'none'; };
   window.onclick = (e) => { if (e.target == searchModal) searchModal.style.display = 'none'; };
-  searchInput.addEventListener('input', () => renderSearchResults(searchInput.value));
+  if(searchInput) searchInput.addEventListener('input', () => renderSearchResults(searchInput.value));
 
   function renderSearchResults(query) {
+    if(!searchResults) return;
     searchResults.innerHTML = '';
     const assignedNames = new Set(userData.top.map(d => d.name));
     const filtered = DELEGATES_DATA.filter(c => c.name.toLowerCase().includes(query.toLowerCase()) && !assignedNames.has(c.name));
+    
     filtered.forEach(c => {
       const item = document.createElement('div'); item.className = 'search-result-item';
       item.innerHTML = `<img src="https://flagcdn.com/w40/${c.code.toLowerCase()}.png"> ${c.name}`;
@@ -196,9 +212,11 @@ function initTopBuilder() {
   }
 
   const pool = document.getElementById('pool');
-  pool.addEventListener('dragover', e => { if (MODULE_DRAG?.type === 'slot') { e.preventDefault(); pool.classList.add('drag-hover'); } });
-  pool.addEventListener('dragleave', () => pool.classList.remove('drag-hover'));
-  pool.addEventListener('drop', e => { e.preventDefault(); pool.classList.remove('drag-hover'); if (MODULE_DRAG?.type === 'slot') unassignRank(MODULE_DRAG.rank); });
+  if(pool) {
+    pool.addEventListener('dragover', e => { if (MODULE_DRAG?.type === 'slot') { e.preventDefault(); pool.classList.add('drag-hover'); } });
+    pool.addEventListener('dragleave', () => pool.classList.remove('drag-hover'));
+    pool.addEventListener('drop', e => { e.preventDefault(); pool.classList.remove('drag-hover'); if (MODULE_DRAG?.type === 'slot') unassignRank(MODULE_DRAG.rank); });
+  }
 
   refreshTopUI();
   setupButtons();
@@ -241,43 +259,65 @@ function refreshTopUI() {
     }
   });
 
-  const cardsEl = document.getElementById('cards'); cardsEl.innerHTML = '';
-  const assignedNames = new Set(userData.top.map(d => d.name));
-  const available = DELEGATES_DATA.filter(c => !assignedNames.has(c.name));
+  const cardsEl = document.getElementById('cards'); 
+  if(cardsEl) {
+      cardsEl.innerHTML = '';
+      const assignedNames = new Set(userData.top.map(d => d.name));
+      const available = DELEGATES_DATA.filter(c => !assignedNames.has(c.name));
+      
+      available.forEach(c => {
+        const card = document.createElement('div'); card.className = 'card'; card.draggable = true;
+        card.innerHTML = `<img class="card-flag" src="https://flagcdn.com/w40/${c.code.toLowerCase()}.png"> ${c.name}`; 
+        card.addEventListener('dragstart', () => { MODULE_DRAG = { type: 'card', data: c }; card.classList.add('ghost'); });
+        card.addEventListener('dragend', () => { card.classList.remove('ghost'); MODULE_DRAG = null; });
+        cardsEl.appendChild(card);
+      });
+      document.getElementById('pool-count').textContent = available.length;
+      filterPoolCards();
+  }
   
-  available.forEach(c => {
-    const card = document.createElement('div'); card.className = 'card'; card.draggable = true;
-    card.innerHTML = `<img class="card-flag" src="https://flagcdn.com/w40/${c.code.toLowerCase()}.png"> ${c.name}`; 
-    card.addEventListener('dragstart', () => { MODULE_DRAG = { type: 'card', data: c }; card.classList.add('ghost'); });
-    card.addEventListener('dragend', () => { card.classList.remove('ghost'); MODULE_DRAG = null; });
-    cardsEl.appendChild(card);
-  });
-  document.getElementById('pool-count').textContent = available.length;
-  filterPoolCards();
+  const statusText = document.getElementById('status-text');
+  if(statusText) statusText.textContent = `${userData.top.length} Asignadas`;
 }
 
 function setupButtons() {
-  document.getElementById('btn-clear').onclick = () => { userData.top = []; refreshTopUI(); triggerSave(); };
-  document.getElementById('btn-shuffle').onclick = () => { refreshTopUI(); };
-  document.getElementById('btn-sort').onclick = () => { refreshTopUI(); };
-  document.getElementById('search-bar').addEventListener('input', filterPoolCards);
+  const btnClear = document.getElementById('btn-clear');
+  if(btnClear) btnClear.onclick = () => { userData.top = []; refreshTopUI(); triggerSave(); };
+
+  const btnShuffle = document.getElementById('btn-shuffle');
+  if(btnShuffle) btnShuffle.onclick = () => { refreshTopUI(); };
+
+  const btnSort = document.getElementById('btn-sort');
+  if(btnSort) btnSort.onclick = () => { refreshTopUI(); };
   
-  // EXPORT IMAGES HANDLERS
-  document.getElementById('btn-img-30').onclick = () => generateImage(30);
-  document.getElementById('btn-img-12').onclick = () => generateImage(12);
-  document.getElementById('btn-img-5').onclick = () => generateImage(5);
+  const searchBar = document.getElementById('search-bar');
+  if(searchBar) searchBar.addEventListener('input', filterPoolCards);
+  
+  const btn30 = document.getElementById('btn-img-30');
+  if(btn30) btn30.onclick = () => generateImage(30);
+  
+  const btn12 = document.getElementById('btn-img-12');
+  if(btn12) btn12.onclick = () => generateImage(12);
+  
+  const btn5 = document.getElementById('btn-img-5');
+  if(btn5) btn5.onclick = () => generateImage(5);
 }
 
 function filterPoolCards() {
-  const searchTerm = document.getElementById('search-bar').value.toLowerCase();
-  const cards = document.getElementById('cards').children;
+  const searchBar = document.getElementById('search-bar');
+  if(!searchBar) return;
+  const searchTerm = searchBar.value.toLowerCase();
+  const cardsContainer = document.getElementById('cards');
+  if(!cardsContainer) return;
+  const cards = cardsContainer.children;
   for (const card of cards) card.style.display = card.textContent.toLowerCase().includes(searchTerm) ? 'flex' : 'none';
 }
 
-// --- GENERATE IMAGE (INSTAGRAM 4:5) ---
+// --- GENERATE IMAGE ---
 async function generateImage(limit) {
     const statusEl = document.getElementById('status-text');
-    statusEl.textContent = "Generando...";
+    if(statusEl) statusEl.textContent = "Generando...";
+    
     const exportStage = document.getElementById('export-stage');
     const exportGrid = document.getElementById('export-grid');
     const exportUser = document.getElementById('export-username');
@@ -302,14 +342,16 @@ async function generateImage(limit) {
         const canvas = await window.html2canvas(exportStage, { scale: 1, useCORS: true, backgroundColor: "#000000" });
         const link = document.createElement('a'); link.download = `MyTop${limit}_MissUniverse.png`;
         link.href = canvas.toDataURL('image/png'); link.click();
-        statusEl.textContent = "Descargada ✔";
-    } catch (err) { console.error(err); statusEl.textContent = "Error"; }
+        if(statusEl) statusEl.textContent = "Descargada ✔";
+    } catch (err) { console.error(err); if(statusEl) statusEl.textContent = "Error"; }
 }
 
 
 // --- 7. SCORING ---
 function initScoring() {
   const container = document.querySelector('#app-scoring #card-container');
+  if(!container) return;
+  
   let currentIndex = 0;
   container.innerHTML = '';
   DELEGATES_DATA.forEach((delegate, index) => { container.appendChild(createCardEl(delegate, index)); });
@@ -333,14 +375,21 @@ function initScoring() {
     if (index > currentIndex) { if (currentCard) currentCard.classList.add('exiting'); if (newCard) { newCard.classList.remove('exiting'); newCard.classList.add('active'); } } 
     else { if (currentCard) currentCard.classList.remove('active'); if (newCard) { newCard.classList.remove('exiting'); newCard.classList.add('active'); } }
     currentIndex = index;
-    document.getElementById('counter').textContent = `${currentIndex + 1} / ${DELEGATES_DATA.length}`;
-    document.getElementById('btn-prev').disabled = (currentIndex === 0);
-    document.getElementById('btn-next').disabled = (currentIndex === DELEGATES_DATA.length - 1);
+    const counter = document.getElementById('counter');
+    if(counter) counter.textContent = `${currentIndex + 1} / ${DELEGATES_DATA.length}`;
+    
+    const btnPrev = document.getElementById('btn-prev');
+    const btnNext = document.getElementById('btn-next');
+    if(btnPrev) btnPrev.disabled = (currentIndex === 0);
+    if(btnNext) btnNext.disabled = (currentIndex === DELEGATES_DATA.length - 1);
   }
 
   function setupListeners() {
-    document.getElementById('btn-next').onclick = () => { if (currentIndex < DELEGATES_DATA.length - 1) showCard(currentIndex + 1); };
-    document.getElementById('btn-prev').onclick = () => { if (currentIndex > 0) showCard(currentIndex - 1); };
+    const btnNext = document.getElementById('btn-next');
+    const btnPrev = document.getElementById('btn-prev');
+    
+    if(btnNext) btnNext.onclick = () => { if (currentIndex < DELEGATES_DATA.length - 1) showCard(currentIndex + 1); };
+    if(btnPrev) btnPrev.onclick = () => { if (currentIndex > 0) showCard(currentIndex - 1); };
     container.addEventListener('input', e => {
       if (e.target.classList.contains('score-input')) {
         const card = e.target.closest('.score-card');
@@ -356,6 +405,7 @@ function initScoring() {
 
   function updateRankingTable() {
     const list = document.getElementById('ranking-list');
+    if(!list) return;
     list.innerHTML = '';
     const ranked = DELEGATES_DATA.map(d => {
       const s = userData.scores[d.name] || {};
