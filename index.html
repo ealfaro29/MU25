@@ -75,7 +75,7 @@
             <button id="btn-sort" class="btn">A-Z</button>
             <span class="sep"></span>
             <div class="export-group" style="display:flex; gap:10px; align-items:center;">
-                <span class="status" style="font-size:12px; color:#aaa;">Exportar Imagen:  </span>
+                <span class="status" style="font-size:12px; color:#aaa;">Compartir IG:</span>
                 <button class="btn primary" id="btn-img-30">Top 30</button>
                 <button class="btn primary" id="btn-img-12">Top 12</button>
                 <button class="btn primary" id="btn-img-5">Top 5</button>
@@ -100,21 +100,23 @@
 
 <div id="export-stage-container" style="position:fixed; left:-9999px; top:0;">
     <div id="export-stage">
-        <div class="export-header"><h1>My Prediction</h1><h2>Miss Universe 2025</h2></div>
+        <div class="export-header">
+            <h1>MISS UNIVERSE 2025</h1>
+            <h2 id="export-subtitle">MY TOP 30</h2>
+        </div>
         <div id="export-grid" class="export-grid"></div>
-        <div class="export-footer"><p>Creado por: <span id="export-username">User</span></p><p>#MissUniverse</p></div>
+        <div class="export-footer"><p>Prediction by: <span id="export-username">User</span></p><p>#MissUniverse</p></div>
     </div>
 </div>
 
 <script>
-// TABS & P5 Background Logic
+// Inicialización P5 y Tabs
 (function() {
   const tabs=document.querySelectorAll('.tab-btn'), contents=document.querySelectorAll('.tab-content');
   tabs.forEach(tab=>tab.addEventListener('click',()=>{
      contents.forEach(c=>c.classList.remove('active')); tabs.forEach(t=>t.classList.remove('active'));
      document.getElementById(tab.dataset.tab).classList.add('active'); tab.classList.add('active');
   }));
-  // Mobile Warning Closure
   if(window.innerWidth<768){
      const m=document.getElementById('mobile-warning'); 
      if(m){ m.style.display='flex'; document.getElementById('btn-close-mobile').onclick=()=>{m.style.display='none'};}

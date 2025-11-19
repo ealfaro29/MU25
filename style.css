@@ -119,7 +119,7 @@ body{margin:0; background:var(--bg); color:var(--text); font-family:var(--font-b
 }
 #app-top-builder .hint{color:#bbb; font-size:16px; font-family:var(--font-display); letter-spacing:1px; margin-top: 8px;}
 
-/* TOP 12 GRID: 1fr 1fr 1fr 0.8fr */
+/* GRID TOP 12 CONFIG */
 #app-top-builder .grid{ display:grid; gap:20px; grid-template-columns:1fr 1fr 1fr 0.8fr; }
 #app-top-builder .col{background:var(--panel); border:1px solid #ffffff15; border-radius:4px; padding:15px; backdrop-filter: blur(10px); box-shadow: 0 10px 30px #00000050;}
 #app-top-builder .col h2{margin:0 0 15px 0; font-size:24px; color:var(--gold-2); text-align:center; font-family: var(--font-display); text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid var(--gold-5); padding-bottom: 10px;}
@@ -231,17 +231,37 @@ body{margin:0; background:var(--bg); color:var(--text); font-family:var(--font-b
 #app-scoring .score-card{ position:absolute; width:100%; top:0; left:0; background: #111; border:1px solid var(--gold-5); border-radius:8px; padding:25px; box-shadow: 0 10px 40px #000; transition: transform .5s ease-out, opacity .5s ease-out; opacity: 0; transform: translateX(100%) rotateY(-20deg); }
 #app-scoring .score-card.active{ opacity: 1; transform: translateX(0) rotateY(0); z-index: 10; }
 #app-scoring .score-card.exiting{ opacity: 0; transform: translateX(-100%) rotateY(20deg); z-index: 5; }
-#app-scoring .card-header{ display:flex; align-items:center; gap:20px; border-bottom: 1px solid var(--divider); padding-bottom: 20px; margin-bottom: 20px; }
-#app-scoring .card-flag{ width: 100px; border-radius: 4px; box-shadow: 0 4px 15px #000; }
-#app-scoring .card-names{flex:1;}
-#app-scoring .card-country{ font-family: var(--font-display); font-size: 32px; font-weight: 900; color: var(--gold-2); margin: 0; text-transform: uppercase; }
-#app-scoring .card-delegate{ font-family: var(--font-body); font-size: 20px; color: var(--text); margin: 5px 0 0 0; font-style: italic; }
+
+/* --- ESTILOS FOTOS EN CARDS --- */
+#app-scoring .card-header {
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 15px;
+  border-bottom: 1px solid var(--divider); padding-bottom: 20px; margin-bottom: 20px;
+}
+@media(min-width: 600px) { #app-scoring .card-header { flex-direction: row; text-align: left; } }
+.card-photo-wrapper {
+    width: 130px; height: 130px;
+    border-radius: 12px; border: 2px solid var(--gold-2);
+    box-shadow: 0 0 15px rgba(191, 149, 63, 0.3);
+    background: #000; overflow: hidden; position: relative; flex-shrink: 0;
+}
+.card-photo {
+    width: 160.71%; max-width: none; height: auto;
+    position: absolute; left: 50%; transform: translateX(-50%); top: 0;
+}
+@media(max-width: 600px) { .card-photo-wrapper { width: 150px; height: 150px; } }
+.card-names{flex:1;}
+.card-country{ font-family: var(--font-display); font-size: 32px; font-weight: 900; color: var(--gold-2); margin: 0; text-transform: uppercase; display:flex; align-items:center; justify-content:center; gap:10px;}
+@media(min-width: 600px){ .card-country{justify-content:flex-start;} }
+.mini-flag { width: 24px; height: auto; border-radius: 2px; opacity: 0.8; }
+.card-delegate{ font-family: var(--font-body); font-size: 20px; color: var(--text); margin: 5px 0 0 0; font-style: italic; }
+
 #app-scoring .card-scores{ display:grid; grid-template-columns: 1fr 1fr; gap: 25px; }
 #app-scoring .score-col h3{ font-family: var(--font-display); color: var(--gold-4); font-size: 24px; margin: 0 0 15px 0; letter-spacing: 1px; border-bottom: 1px solid var(--gold-5); padding-bottom: 10px; }
 #app-scoring .score-row{ display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px; }
 #app-scoring .score-row label{ font-family: var(--font-body); font-size: 18px; font-weight: 700; }
 #app-scoring .score-row input{ width: 80px; height: 50px; background: #000; border: 1px solid var(--divider); color: var(--gold-2); font-family: var(--font-display); font-size: 24px; font-weight: 700; text-align: center; border-radius: 4px; }
 #app-scoring .score-row input:focus{ outline: none; border-color: var(--gold-2); background: #111; }
+
 #app-scoring .ranking-container { margin-top: 40px; background: var(--panel); border: 1px solid var(--gold-5); border-radius: 4px; padding: 20px; }
 #app-scoring .ranking-container h2 { font-family: var(--font-display); color: var(--gold-2); text-align: center; text-transform: uppercase; font-size: 24px; margin: 0 0 20px 0; letter-spacing: 1px; border-bottom: 1px solid var(--gold-5); padding-bottom: 10px; }
 #app-scoring .rank-row { display: flex; align-items: center; gap: 15px; padding: 10px; border-radius: 4px; border: 1px solid #ffffff10; margin-bottom: 8px; transition: all .2s; }
@@ -259,32 +279,116 @@ body{margin:0; background:var(--bg); color:var(--text); font-family:var(--font-b
 #app-scoring .rank-row[data-rank="3"] .rank-name, #app-scoring .rank-row[data-rank="3"] .rank-pos { color: #fff; text-shadow: 0 1px 1px #000; }
 #app-scoring .rank-row[data-rank="3"] .rank-score { color: var(--gold-4); }
 
-/* --- EXPORT STYLES (INSTAGRAM 4:5) --- */
+/* =========================================
+   EXPORT STYLES - FIXED MATHEMATICS
+========================================= */
+
+/* Canvas Base: 1080x1350px */
 #export-stage {
   width: 1080px; height: 1350px;
   background: radial-gradient(circle at center, #1a1a1a 0%, #000 100%);
-  padding: 60px;
+  padding: 40px 50px;
   display: flex; flex-direction: column; align-items: center;
   border: 20px solid var(--gold-5); box-sizing: border-box;
-  font-family: var(--font-display);
+  font-family: var(--font-display); overflow: hidden;
 }
-.export-header { text-align: center; margin-bottom: 40px; }
-.export-header h1 { color: var(--gold-2); font-size: 80px; margin: 0; text-transform: uppercase; letter-spacing: 5px; text-shadow: 0 5px 15px #000; }
-.export-header h2 { color: var(--gold-5); font-size: 40px; margin: 10px 0 0 0; letter-spacing: 2px; }
-.export-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; width: 100%; flex-grow: 1; align-content: start; }
+
+/* Header (180px aprox) */
+.export-header { text-align: center; margin-bottom: 20px; flex-shrink: 0; }
+.export-header h1 { color: var(--gold-2); font-size: 60px; margin: 0; text-transform: uppercase; letter-spacing: 5px; text-shadow: 0 5px 15px #000; }
+.export-header h2 { color: var(--gold-5); font-size: 35px; margin: 5px 0 0 0; letter-spacing: 2px; text-transform: uppercase;}
+
+/* Footer (70px aprox) */
+.export-footer { margin-top: auto; width: 100%; text-align: center; border-top: 2px solid var(--gold-5); padding-top: 15px; display: flex; justify-content: space-between; color: #666; font-size: 20px; font-family: var(--font-body); flex-shrink: 0;}
+.export-footer span { color: var(--gold-2); font-weight: bold; }
+
+/* Grid Container */
+.export-grid {
+  width: 100%; flex-grow: 1; 
+  display: grid; 
+  align-content: start;
+}
+
+/* Generic Item */
 .export-item {
   background: linear-gradient(to bottom, #222, #000);
-  border: 2px solid var(--gold-5); border-radius: 8px; padding: 15px;
-  display: flex; align-items: center; gap: 20px;
-  box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+  border: 2px solid var(--gold-5); border-radius: 6px;
+  display: flex; align-items: center; gap: 15px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+  overflow: hidden; /* Prevenir desbordes */
 }
-.export-item[data-rank="1"] { background: linear-gradient(135deg, var(--gold-5), var(--gold-2)); border-color: #fff; grid-column: span 3; justify-content: center; padding: 30px; margin-bottom: 20px; }
-.export-item[data-rank="1"] .export-rank { color: #000; font-size: 50px; }
-.export-item[data-rank="1"] .export-name { color: #000; font-size: 45px; font-weight: 900; }
-.export-rank { font-size: 35px; font-weight: 900; color: var(--gold-2); width: 60px; text-align: center; border-right: 2px solid #333; }
-.export-flag { width: 50px; border-radius: 4px; box-shadow: 0 2px 5px #000; }
-.export-name { font-size: 24px; color: #fff; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
-.export-footer { margin-top: auto; width: 100%; text-align: center; border-top: 2px solid var(--gold-5); padding-top: 20px; display: flex; justify-content: space-between; color: #666; font-size: 20px; font-family: var(--font-body); }
-.export-footer span { color: var(--gold-2); font-weight: bold; }
-.top-5-mode .export-grid { display: flex; flex-direction: column; justify-content: center; gap: 30px; }
-.top-5-mode .export-item { padding: 30px; }
+
+/* Rank Styles (Shared) */
+.export-rank { font-weight: 900; color: var(--gold-2); text-align: center; border-right: 2px solid #333; display:flex; align-items:center; justify-content:center; height:100%; }
+.export-flag { border-radius: 2px; box-shadow: 0 2px 5px #000; object-fit: cover; }
+.export-name { color: #fff; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* --- Special Ranks (1, 2, 3) Styles for ALL modes --- */
+.export-item[data-rank="1"] { background: linear-gradient(135deg, var(--gold-5), var(--gold-2)); border-color: #fff; }
+.export-item[data-rank="1"] .export-rank, .export-item[data-rank="1"] .export-name { color: #000; }
+.export-item[data-rank="1"] .export-rank { border-right-color: #000; }
+
+.export-item[data-rank="2"] { background: linear-gradient(135deg, var(--silver-3), var(--silver-1)); border-color: #fff; }
+.export-item[data-rank="2"] .export-rank, .export-item[data-rank="2"] .export-name { color: #000; }
+.export-item[data-rank="2"] .export-rank { border-right-color: #000; }
+
+.export-item[data-rank="3"] { background: linear-gradient(135deg, var(--bronze-3), var(--bronze-1)); border-color: #fff; }
+.export-item[data-rank="3"] .export-rank, .export-item[data-rank="3"] .export-name { color: #fff; text-shadow: 0 1px 1px #000; }
+.export-item[data-rank="3"] .export-rank { border-right-color: #000; }
+
+
+/* --- MODE 30: 10 Rows, 3 Cols --- */
+/* Fix: Use grid-template-rows to force height fit */
+.mode-30 .export-grid {
+    grid-template-columns: repeat(3, 1fr);
+    /* 10 Rows total. Row 1 is 1.4x height. */
+    grid-template-rows: 1.4fr repeat(9, 1fr); 
+    gap: 8px;
+    height: 100%; /* Occupy full available space */
+}
+.mode-30 .export-item { padding: 0 10px; }
+.mode-30 .export-rank { font-size: 24px; width: 40px; }
+.mode-30 .export-flag { width: 40px; height: 28px; }
+.mode-30 .export-name { font-size: 16px; }
+/* Bigger text for Top 3 row */
+.mode-30 .export-item[data-rank="1"] .export-name,
+.mode-30 .export-item[data-rank="2"] .export-name,
+.mode-30 .export-item[data-rank="3"] .export-name { font-size: 22px; }
+
+
+/* --- MODE 12: 4 Rows, 3 Cols --- */
+.mode-12 .export-grid {
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(4, 1fr); /* Force 4 equal rows */
+    gap: 20px;
+    height: 100%;
+}
+.mode-12 .export-item { padding: 0 20px; }
+.mode-12 .export-rank { font-size: 50px; width: 70px; }
+.mode-12 .export-flag { width: 70px; height: 50px; }
+.mode-12 .export-name { font-size: 28px; }
+
+
+/* --- MODE 5: Custom Layout --- */
+.mode-5 .export-grid {
+    display: grid; 
+    grid-template-columns: 1fr 1fr; 
+    grid-template-rows: 1.2fr 1fr 1fr; 
+    gap: 30px;
+    height: 100%;
+}
+.mode-5 .export-item { padding: 20px; }
+/* Rank 1 spans full width */
+.mode-5 .export-item[data-rank="1"] {
+    grid-column: span 2; 
+    background: linear-gradient(135deg, var(--gold-5), var(--gold-2)); 
+    border-color: #fff; justify-content: center;
+}
+.mode-5 .export-item[data-rank="1"] .export-rank { color: #000; font-size: 80px; width: 120px; border-right-color: #000;}
+.mode-5 .export-item[data-rank="1"] .export-name { color: #000; font-size: 60px; font-weight: 900; }
+.mode-5 .export-item[data-rank="1"] .export-flag { width: 100px; height: 70px; }
+
+/* Rest of top 5 */
+.mode-5 .export-rank { font-size: 50px; width: 70px; }
+.mode-5 .export-flag { width: 80px; height: 55px; }
+.mode-5 .export-name { font-size: 35px; }

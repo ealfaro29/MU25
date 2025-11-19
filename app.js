@@ -135,7 +135,7 @@ function triggerSave() {
 }
 
 
-// --- 6. TOP BUILDER (LOGICA TOP 12) ---
+// --- 6. TOP BUILDER ---
 function initTopBuilder() {
   const RANGES = { 
     A: [30,29,28,27,26,25,24,23,22], 
@@ -321,13 +321,20 @@ async function generateImage(limit) {
     const exportStage = document.getElementById('export-stage');
     const exportGrid = document.getElementById('export-grid');
     const exportUser = document.getElementById('export-username');
+    const exportSubtitle = document.getElementById('export-subtitle');
     
     const sortedTop = userData.top.filter(x => x.rank > 0 && x.rank <= 30).sort((a, b) => a.rank - b.rank).slice(0, limit);
     if (sortedTop.length === 0) { alert("Tu top está vacío."); return; }
 
     exportGrid.innerHTML = '';
     exportUser.textContent = currentUser || "Fan";
-    if(limit === 5) exportStage.classList.add('top-5-mode'); else exportStage.classList.remove('top-5-mode');
+    exportSubtitle.textContent = `TOP ${limit}`; 
+    
+    // RESET CLASSES
+    exportStage.className = ''; 
+    if(limit === 30) exportStage.classList.add('mode-30');
+    else if(limit === 12) exportStage.classList.add('mode-12');
+    else if(limit === 5) exportStage.classList.add('mode-5');
 
     sortedTop.forEach(item => {
         const dData = DELEGATES_DATA.find(d => d.name === item.name);
@@ -360,11 +367,31 @@ function initScoring() {
   function createCardEl(delegate, index) {
     const el = document.createElement('div'); el.className = 'score-card'; el.dataset.index = index; el.dataset.name = delegate.name;
     const s = userData.scores[delegate.name] || {};
+    const imgUrl = `https://www.tpmum.com/25${delegate.imgCode}.jpg`;
+
     el.innerHTML = `
-      <div class="card-header"><img class="card-flag" src="https://flagcdn.com/w160/${delegate.code.toLowerCase()}.png"><div class="card-names"><h2 class="card-country">${delegate.name}</h2><p class="card-delegate">${delegate.delegate}</p></div></div>
+      <div class="card-header">
+        <div class="card-photo-wrapper">
+            <img class="card-photo" src="${imgUrl}" alt="${delegate.name}" onerror="this.src='https://flagcdn.com/w160/${delegate.code.toLowerCase()}.png'">
+        </div>
+        <div class="card-names">
+            <h2 class="card-country">${delegate.name} <img class="mini-flag" src="https://flagcdn.com/w40/${delegate.code.toLowerCase()}.png"></h2>
+            <p class="card-delegate">${delegate.delegate}</p>
+        </div>
+      </div>
       <div class="card-scores">
-        <div class="score-col"><h3>Preliminar</h3><div class="score-row"><label>Traje de Baño</label><input type="number" class="score-input" data-cat="pre_swim" min="0" max="10" step="0.1" value="${s.pre_swim||''}"></div><div class="score-row"><label>Traje de Noche</label><input type="number" class="score-input" data-cat="pre_gown" min="0" max="10" step="0.1" value="${s.pre_gown||''}"></div></div>
-        <div class="score-col"><h3>Final</h3><div class="score-row"><label>Traje de Baño</label><input type="number" class="score-input" data-cat="fin_swim" min="0" max="10" step="0.1" value="${s.fin_swim||''}"></div><div class="score-row"><label>Traje de Noche</label><input type="number" class="score-input" data-cat="fin_gown" min="0" max="10" step="0.1" value="${s.fin_gown||''}"></div><div class="score-row"><label>Pregunta</label><input type="number" class="score-input" data-cat="fin_q" min="0" max="10" step="0.1" value="${s.fin_q||''}"></div></div>
+        <div class="score-col">
+          <h3>Preliminar</h3>
+          <div class="score-row"><label>Traje Nacional</label><input type="number" class="score-input" data-cat="pre_nat" min="0" max="10" step="0.1" value="${s.pre_nat||''}"></div>
+          <div class="score-row"><label>Traje de Baño</label><input type="number" class="score-input" data-cat="pre_swim" min="0" max="10" step="0.1" value="${s.pre_swim||''}"></div>
+          <div class="score-row"><label>Traje de Noche</label><input type="number" class="score-input" data-cat="pre_gown" min="0" max="10" step="0.1" value="${s.pre_gown||''}"></div>
+        </div>
+        <div class="score-col">
+          <h3>Final</h3>
+          <div class="score-row"><label>Traje de Baño</label><input type="number" class="score-input" data-cat="fin_swim" min="0" max="10" step="0.1" value="${s.fin_swim||''}"></div>
+          <div class="score-row"><label>Traje de Noche</label><input type="number" class="score-input" data-cat="fin_gown" min="0" max="10" step="0.1" value="${s.fin_gown||''}"></div>
+          <div class="score-row"><label>Pregunta</label><input type="number" class="score-input" data-cat="fin_q" min="0" max="10" step="0.1" value="${s.fin_q||''}"></div>
+        </div>
       </div>`;
     return el;
   }
@@ -409,7 +436,7 @@ function initScoring() {
     list.innerHTML = '';
     const ranked = DELEGATES_DATA.map(d => {
       const s = userData.scores[d.name] || {};
-      const total = (parseFloat(s.pre_swim)||0) + (parseFloat(s.pre_gown)||0) + (parseFloat(s.fin_swim)||0) + (parseFloat(s.fin_gown)||0) + (parseFloat(s.fin_q)||0);
+      const total = (parseFloat(s.pre_nat)||0) + (parseFloat(s.pre_swim)||0) + (parseFloat(s.pre_gown)||0) + (parseFloat(s.fin_swim)||0) + (parseFloat(s.fin_gown)||0) + (parseFloat(s.fin_q)||0);
       return { ...d, total };
     }).sort((a,b) => b.total - a.total).slice(0, 30);
     ranked.forEach((d, i) => {
