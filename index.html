@@ -5,12 +5,15 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Miss Universe Hub - Community</title>
 
+<!-- Librerías Externas -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
+<!-- Fuentes y Estilos -->
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 
+<!-- Lógica de la App -->
 <script type="module" src="app.js"></script>
 </head>
 <body>
@@ -18,6 +21,7 @@
 <div id="p5-background"></div>
 <div id="save-status">Guardado en la nube</div>
 
+<!-- PANTALLA DE LOGIN -->
 <div id="login-overlay">
   <div class="login-box">
     <h1>Miss Universe Hub</h1>
@@ -29,12 +33,14 @@
   </div>
 </div>
 
+<!-- AVISO PARA MÓVILES -->
 <div id="mobile-warning" class="mobile-overlay" style="display:none">
   <div class="mobile-msg">
     <h2>⚠️ Atención</h2><p>Esta app está optimizada para PC/Tablet.</p><button id="btn-close-mobile">Entendido</button>
   </div>
 </div>
 
+<!-- MODAL DE BÚSQUEDA -->
 <div id="slot-search-modal">
   <div class="search-modal-content">
     <div class="search-modal-header"><h3>Asignar Delegada</h3><span class="close-modal" id="close-slot-search">&times;</span></div>
@@ -43,6 +49,7 @@
   </div>
 </div>
 
+<!-- CONTENEDOR PRINCIPAL -->
 <div id="app-container">
     <nav class="hub-nav">
       <button class="tab-btn active" data-tab="app-top-builder">MU25 TOP</button>
@@ -50,6 +57,7 @@
       <div class="user-info"><span class="user-name" id="display-user">...</span><button id="btn-logout" class="btn-logout">Salir</button></div>
     </nav>
 
+    <!-- SECCIÓN 1: TOP BUILDER -->
     <div id="app-top-builder" class="tab-content active">
       <div class="app">
         <div class="topbar"><h1 class="title">Miss Universe Official Top</h1><div class="hint">Arrastra a tus favoritas</div></div>
@@ -86,6 +94,7 @@
       </div>
     </div>
 
+    <!-- SECCIÓN 2: VOTACIONES -->
     <div id="app-scoring" class="tab-content">
       <div class="app">
         <div class="topbar"><h1 class="title">Votaciones</h1></div>
@@ -98,6 +107,7 @@
     </div>
 </div>
 
+<!-- LIENZO OCULTO PARA EXPORTAR IMAGEN (1080x1350) -->
 <div id="export-stage-container" style="position:fixed; left:-9999px; top:0;">
     <div id="export-stage">
         <div class="export-header">
@@ -110,7 +120,7 @@
 </div>
 
 <script>
-// Inicialización P5 y Tabs
+// Inicialización de Pestañas y Fondo
 (function() {
   const tabs=document.querySelectorAll('.tab-btn'), contents=document.querySelectorAll('.tab-content');
   tabs.forEach(tab=>tab.addEventListener('click',()=>{
@@ -122,6 +132,8 @@
      if(m){ m.style.display='flex'; document.getElementById('btn-close-mobile').onclick=()=>{m.style.display='none'};}
   }
 })();
+
+// Fondo de partículas P5.js
 function setup(){let cnv=createCanvas(windowWidth,windowHeight);cnv.parent('p5-background');noStroke();}
 function windowResized(){resizeCanvas(windowWidth,windowHeight);}
 let particles=[];

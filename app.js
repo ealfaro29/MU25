@@ -328,7 +328,7 @@ async function generateImage(limit) {
 
     exportGrid.innerHTML = '';
     exportUser.textContent = currentUser || "Fan";
-    exportSubtitle.textContent = `TOP ${limit}`; 
+    exportSubtitle.textContent = `TOP ${limit}`;
     
     // RESET CLASSES
     exportStage.className = ''; 
@@ -367,6 +367,7 @@ function initScoring() {
   function createCardEl(delegate, index) {
     const el = document.createElement('div'); el.className = 'score-card'; el.dataset.index = index; el.dataset.name = delegate.name;
     const s = userData.scores[delegate.name] || {};
+    // FÓRMULA CORRECTA PARA FOTO
     const imgUrl = `https://www.tpmum.com/25${delegate.imgCode}.jpg`;
 
     el.innerHTML = `
