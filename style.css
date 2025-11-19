@@ -1,4 +1,5 @@
-/* style.css */
+/* style.css - VERSIÓN FINAL CON ZOOM 90% */
+
 :root{
   --bg:#050505; --panel:#0a0a0aef; --divider:#333; --text:#f0f0f0;
   --gold-1: #bf953f; --gold-2: #fcf6ba; --gold-3: #b38728; --gold-4: #fbf5b7; --gold-5: #aa771c;
@@ -9,7 +10,23 @@
   --font-body: 'Playfair Display', serif;
 }
 *{box-sizing:border-box}
-body{margin:0; background:var(--bg); color:var(--text); font-family:var(--font-body); overflow-x:hidden;}
+
+body {
+  margin: 0; 
+  background: var(--bg); 
+  color: var(--text); 
+  font-family: var(--font-body); 
+  overflow-x: hidden;
+  
+  /* --- ZOOM FORZADO AL 90% --- */
+  zoom: 0.9; 
+}
+
+/* Protección para que el exportador de imágenes NO se vea afectado por el zoom */
+#export-stage-container {
+    zoom: normal; /* Restablece el zoom al 100% para la generación de la imagen */
+}
+
 #p5-background { position: fixed; top: 0; left: 0; z-index: -1; opacity: 0.6; }
 
 /* --- UI General --- */
