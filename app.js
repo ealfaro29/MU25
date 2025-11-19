@@ -20,15 +20,15 @@ let currentUser = null;
 let userData = { top: [], scores: {} };
 let saveTimeout = null;
 let MODULE_DRAG = null; 
-let selectedCandidate = null; // Para modo "Toque" (Tap to Assign)
-let autoScrollSpeed = 0;      // Para Auto-Scroll
+let selectedCandidate = null; 
+let autoScrollSpeed = 0;
 
 // --- 3. INICIALIZACIÓN ---
 try {
   const app = initializeApp(firebaseConfig);
   db = getFirestore(app);
   checkAutoLogin();
-  initAutoScrollLoop(); // Iniciar loop de auto-scroll
+  initAutoScrollLoop(); 
 } catch (e) {
   console.error("Firebase Error:", e);
 }
@@ -95,8 +95,6 @@ function finalizeLogin(user, data) {
 
   initTopBuilder();
   initScoring();
-  
-  // INICIAR GESTOR DE COMUNIDAD INTELIGENTE
   initCommunityManager();
 
   onSnapshot(doc(db, "users", user), (docSnap) => {
@@ -141,29 +139,23 @@ function triggerSave() {
 }
 
 
-// --- 6. TOP BUILDER & AUTO SCROLL ---
+// --- 6. TOP BUILDER & LOGIC ---
 
+// Scroll Loop
 function initAutoScrollLoop() {
     function step() {
-        if (autoScrollSpeed !== 0) {
-            window.scrollBy(0, autoScrollSpeed);
-        }
+        if (autoScrollSpeed !== 0) window.scrollBy(0, autoScrollSpeed);
         requestAnimationFrame(step);
     }
     requestAnimationFrame(step);
 }
 
+// Drag Edge Detection
 window.addEventListener('dragover', (e) => {
-    const edgeSize = 80; 
-    const maxSpeed = 15; 
-
-    if (e.clientY < edgeSize) {
-        autoScrollSpeed = -maxSpeed * ((edgeSize - e.clientY) / edgeSize);
-    } else if (e.clientY > window.innerHeight - edgeSize) {
-        autoScrollSpeed = maxSpeed * ((e.clientY - (window.innerHeight - edgeSize)) / edgeSize);
-    } else {
-        autoScrollSpeed = 0;
-    }
+    const edgeSize = 80; const maxSpeed = 15; 
+    if (e.clientY < edgeSize) autoScrollSpeed = -maxSpeed * ((edgeSize - e.clientY) / edgeSize);
+    else if (e.clientY > window.innerHeight - edgeSize) autoScrollSpeed = maxSpeed * ((e.clientY - (window.innerHeight - edgeSize)) / edgeSize);
+    else autoScrollSpeed = 0;
 });
 window.addEventListener('dragend', () => { autoScrollSpeed = 0; });
 window.addEventListener('drop', () => { autoScrollSpeed = 0; });
@@ -201,16 +193,17 @@ function initTopBuilder() {
         
         slot.innerHTML = `<div class="num">${rankDisplay}</div><div class="photo"><img alt=""></div><div class="name">—</div>`;
         
+        // Tap to Assign
         slot.addEventListener('click', () => {
             if (selectedCandidate) {
-                assignRank(selectedCandidate, rank);
+                handleDelegateMove(selectedCandidate.name, rank);
                 selectedCandidate = null; 
                 return;
             }
-            const existing = userData.top.find(x => x.rank === rank);
             activeSearchRank = rank; searchInput.value=''; renderSearchResults(''); searchModal.style.display='flex'; searchInput.focus();
         });
 
+        // Drag Events
         slot.addEventListener('dragstart', e => {
             const existing = userData.top.find(x => x.rank === rank);
             if (!existing) { e.preventDefault(); return; }
@@ -220,12 +213,16 @@ function initTopBuilder() {
         slot.addEventListener('dragend', () => { slot.classList.remove('ghost'); MODULE_DRAG = null; document.querySelectorAll('.drag-hover').forEach(x => x.classList.remove('drag-hover')); autoScrollSpeed = 0; });
         slot.addEventListener('dragover', e => { if (!MODULE_DRAG) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; slot.classList.add('drag-hover'); });
         slot.addEventListener('dragleave', () => slot.classList.remove('drag-hover'));
+        
+        // DROP HANDLER - Lógica unificada
         slot.addEventListener('drop', e => {
             e.preventDefault(); slot.classList.remove('drag-hover');
             if (!MODULE_DRAG) return;
+            
             const targetRank = Number(slot.dataset.rank);
-            if (MODULE_DRAG.type === 'card') assignRank(MODULE_DRAG.data, targetRank);
-            else if (MODULE_DRAG.type === 'slot') swapRanks(MODULE_DRAG.rank, targetRank);
+            // Usamos la misma función maestra para todo
+            if (MODULE_DRAG.type === 'card') handleDelegateMove(MODULE_DRAG.data.name, targetRank);
+            else if (MODULE_DRAG.type === 'slot') handleDelegateMove(MODULE_DRAG.data.name, targetRank);
         });
         col.appendChild(slot);
     });
@@ -244,7 +241,10 @@ function initTopBuilder() {
     filtered.forEach(c => {
       const item = document.createElement('div'); item.className = 'search-result-item';
       item.innerHTML = `<img src="https://flagcdn.com/w40/${c.code.toLowerCase()}.png"> ${c.name}`;
-      item.onclick = () => { assignRank(c, activeSearchRank); searchModal.style.display = 'none'; };
+      item.onclick = () => { 
+          handleDelegateMove(c.name, activeSearchRank); 
+          searchModal.style.display = 'none'; 
+      };
       searchResults.appendChild(item);
     });
   }
@@ -253,27 +253,70 @@ function initTopBuilder() {
   if(pool) {
     pool.addEventListener('dragover', e => { if (MODULE_DRAG?.type === 'slot') { e.preventDefault(); pool.classList.add('drag-hover'); } });
     pool.addEventListener('dragleave', () => pool.classList.remove('drag-hover'));
-    pool.addEventListener('drop', e => { e.preventDefault(); pool.classList.remove('drag-hover'); if (MODULE_DRAG?.type === 'slot') unassignRank(MODULE_DRAG.rank); });
+    pool.addEventListener('drop', e => { 
+        e.preventDefault(); pool.classList.remove('drag-hover'); 
+        if (MODULE_DRAG?.type === 'slot') unassignRank(MODULE_DRAG.rank); 
+    });
   }
 
   refreshTopUI();
   setupButtons();
 }
 
-function assignRank(cData, rank) {
-  userData.top = userData.top.filter(x => x.name !== cData.name);
-  userData.top = userData.top.filter(x => x.rank !== rank);
-  userData.top.push({ rank: Number(rank), name: cData.name });
-  refreshTopUI(); triggerSave();
+// --- LÓGICA MAESTRA DE MOVIMIENTO (SOLUCIÓN DUPLICADOS + DESPLAZAMIENTO) ---
+function handleDelegateMove(delegateName, targetRank) {
+    // 1. Verificar quién ocupa el puesto destino actualmente
+    const targetEntry = userData.top.find(x => x.rank === targetRank);
+    
+    // 2. IMPORTANTE: Eliminar la miss entrante de su posición antigua (si tenía una)
+    // Esto previene duplicados al 100%
+    userData.top = userData.top.filter(x => x.name !== delegateName);
+    
+    if (targetEntry) {
+        // CASO: Puesto Ocupado (Intercambio / Desplazamiento)
+        const displacedName = targetEntry.name;
+        
+        // Quitamos a la ocupante del puesto destino
+        userData.top = userData.top.filter(x => x.rank !== targetRank);
+        
+        // Asignamos la nueva miss al puesto
+        userData.top.push({ rank: targetRank, name: delegateName });
+        
+        // Movemos a la desplazada a la Banca (con efecto cascada)
+        moveDelegateToBanca(displacedName);
+    } else {
+        // CASO: Puesto Vacío (Asignación directa)
+        userData.top.push({ rank: targetRank, name: delegateName });
+    }
+    
+    refreshTopUI();
+    triggerSave();
 }
 
-function swapRanks(r1, r2) {
-  const item1 = userData.top.find(x => x.rank === r1);
-  const item2 = userData.top.find(x => x.rank === r2);
-  userData.top = userData.top.filter(x => x.rank !== r1 && x.rank !== r2);
-  if(item1) userData.top.push({ rank: r2, name: item1.name });
-  if(item2) userData.top.push({ rank: r1, name: item1.name });
-  refreshTopUI(); triggerSave();
+// Lógica de Banca tipo "Pila/Queue"
+function moveDelegateToBanca(name) {
+    // 1. Asegurar que no esté ya en top (doble check)
+    userData.top = userData.top.filter(x => x.name !== name);
+    
+    // 2. Obtener las actuales de banca (Ranks -1 a -5)
+    // Ordenamos descendente: -1 (Top), -2, -3...
+    let bancaItems = userData.top
+        .filter(x => x.rank < 0 && x.rank >= -5)
+        .sort((a, b) => b.rank - a.rank); 
+        
+    // 3. Crear nueva lista insertando la desplazada al inicio (Pos 1 -> -1)
+    const newBancaNames = [name, ...bancaItems.map(x => x.name)];
+    
+    // 4. Recortar a 5 (La que quede sexta se cae al Pool automáticamente)
+    const keptNames = newBancaNames.slice(0, 5);
+    
+    // 5. Limpiar toda la banca antigua en userData
+    userData.top = userData.top.filter(x => !(x.rank < 0 && x.rank >= -5));
+    
+    // 6. Reasignar ranks (-1, -2, etc.)
+    keptNames.forEach((n, i) => {
+        userData.top.push({ rank: -(i + 1), name: n });
+    });
 }
 
 function unassignRank(rank) {
@@ -282,7 +325,9 @@ function unassignRank(rank) {
 }
 
 function refreshTopUI() {
-  selectedCandidate = null;
+  selectedCandidate = null; // Reset selección
+
+  // Renderizar Slots
   document.querySelectorAll('#app-top-builder .slot').forEach(slot => {
     const rank = Number(slot.dataset.rank);
     const entry = userData.top.find(x => x.rank === rank);
@@ -297,6 +342,7 @@ function refreshTopUI() {
     }
   });
 
+  // Renderizar Cards (Pool)
   const cardsEl = document.getElementById('cards'); 
   if(cardsEl) {
       cardsEl.innerHTML = '';
@@ -307,7 +353,8 @@ function refreshTopUI() {
         const card = document.createElement('div'); card.className = 'card'; card.draggable = true;
         card.innerHTML = `<img class="card-flag" src="https://flagcdn.com/w40/${c.code.toLowerCase()}.png"> ${c.name}`; 
         
-        card.addEventListener('click', (e) => {
+        // Tap Handler
+        card.addEventListener('click', () => {
             if (selectedCandidate && selectedCandidate.name === c.name) {
                 selectedCandidate = null;
                 refreshTopUI(); 
@@ -335,7 +382,7 @@ function setupButtons() {
   if(btnClear) btnClear.onclick = () => { userData.top = []; refreshTopUI(); triggerSave(); };
 
   const btnShuffle = document.getElementById('btn-shuffle');
-  if(btnShuffle) btnShuffle.onclick = () => { refreshTopUI(); };
+  if(btnShuffle) btnShuffle.onclick = () => { refreshTopUI(); }; // Shuffle placeholder
 
   const btnSort = document.getElementById('btn-sort');
   if(btnSort) btnSort.onclick = () => { refreshTopUI(); };
@@ -393,27 +440,17 @@ async function generateImage(limit) {
         
         const div = document.createElement('div'); div.className = 'export-item'; div.dataset.rank = item.rank;
         const rankDisplay = item.rank === 1 ? '👑' : item.rank;
-
         const flagUrl = forceCors(`https://flagcdn.com/w80/${dData.code.toLowerCase()}.png`);
         
         if (limit === 5) {
             const rawImgUrl = `https://www.tpmum.com/25${dData.imgCode}.jpg`;
             const imgUrl = forceCors(rawImgUrl);
-
             div.innerHTML = `
                 <div class="export-rank">${rankDisplay}</div>
-                <div class="export-photo-wrapper">
-                    <img class="export-photo" src="${imgUrl}" crossorigin="anonymous">
-                </div>
-                <div class="export-details">
-                    <div class="export-name">${dData.name}</div>
-                    <img class="export-flag" src="${flagUrl}" crossorigin="anonymous">
-                </div>`;
+                <div class="export-photo-wrapper"><img class="export-photo" src="${imgUrl}" crossorigin="anonymous"></div>
+                <div class="export-details"><div class="export-name">${dData.name}</div><img class="export-flag" src="${flagUrl}" crossorigin="anonymous"></div>`;
         } else {
-            div.innerHTML = `
-                <div class="export-rank">${rankDisplay}</div>
-                <img class="export-flag" src="${flagUrl}" crossorigin="anonymous">
-                <div class="export-name">${dData.name}</div>`;
+            div.innerHTML = `<div class="export-rank">${rankDisplay}</div><img class="export-flag" src="${flagUrl}" crossorigin="anonymous"><div class="export-name">${dData.name}</div>`;
         }
         exportGrid.appendChild(div);
     });
@@ -421,29 +458,17 @@ async function generateImage(limit) {
     const images = exportGrid.querySelectorAll('img');
     const promises = Array.from(images).map(img => {
         if (img.complete) return Promise.resolve();
-        return new Promise(resolve => {
-            img.onload = resolve;
-            img.onerror = () => { console.warn('Falló imagen (se omitirá):', img.src); resolve(); }; 
-        });
+        return new Promise(resolve => { img.onload = resolve; img.onerror = resolve; });
     });
-
     await Promise.all(promises);
     await new Promise(r => setTimeout(r, 1000)); 
 
     try {
-        const canvas = await window.html2canvas(exportStage, { 
-            scale: 1, 
-            useCORS: true,       
-            allowTaint: true,
-            backgroundColor: "#000000",
-            logging: false
-        });
-        
+        const canvas = await window.html2canvas(exportStage, { scale: 1, useCORS: true, allowTaint: true, backgroundColor: "#000000", logging: false });
         const link = document.createElement('a'); 
         link.download = `MyTop${limit}_MissUniverse.png`;
         link.href = canvas.toDataURL('image/png'); 
         link.click();
-        
         if(statusEl) statusEl.textContent = "Descargada ✔";
     } catch (err) { 
         console.error(err); 
@@ -469,23 +494,16 @@ function initScoring() {
 
     el.innerHTML = `
       <div class="card-header">
-        <div class="card-photo-wrapper">
-            <img class="card-photo" src="${imgUrl}" alt="${delegate.name}" onerror="this.src='https://flagcdn.com/w160/${delegate.code.toLowerCase()}.png'">
-        </div>
-        <div class="card-names">
-            <h2 class="card-country">${delegate.name} <img class="mini-flag" src="https://flagcdn.com/w40/${delegate.code.toLowerCase()}.png"></h2>
-            <p class="card-delegate">${delegate.delegate}</p>
-        </div>
+        <div class="card-photo-wrapper"><img class="card-photo" src="${imgUrl}" alt="${delegate.name}" onerror="this.src='https://flagcdn.com/w160/${delegate.code.toLowerCase()}.png'"></div>
+        <div class="card-names"><h2 class="card-country">${delegate.name} <img class="mini-flag" src="https://flagcdn.com/w40/${delegate.code.toLowerCase()}.png"></h2><p class="card-delegate">${delegate.delegate}</p></div>
       </div>
       <div class="card-scores">
-        <div class="score-col">
-          <h3>Preliminar</h3>
+        <div class="score-col"><h3>Preliminar</h3>
           <div class="score-row"><label>Traje Nacional</label><input type="number" class="score-input" data-cat="pre_nat" min="0" max="10" step="0.1" value="${s.pre_nat||''}"></div>
           <div class="score-row"><label>Traje de Baño</label><input type="number" class="score-input" data-cat="pre_swim" min="0" max="10" step="0.1" value="${s.pre_swim||''}"></div>
           <div class="score-row"><label>Traje de Noche</label><input type="number" class="score-input" data-cat="pre_gown" min="0" max="10" step="0.1" value="${s.pre_gown||''}"></div>
         </div>
-        <div class="score-col">
-          <h3>Final</h3>
+        <div class="score-col"><h3>Final</h3>
           <div class="score-row"><label>Traje de Baño</label><input type="number" class="score-input" data-cat="fin_swim" min="0" max="10" step="0.1" value="${s.fin_swim||''}"></div>
           <div class="score-row"><label>Traje de Noche</label><input type="number" class="score-input" data-cat="fin_gown" min="0" max="10" step="0.1" value="${s.fin_gown||''}"></div>
           <div class="score-row"><label>Pregunta</label><input type="number" class="score-input" data-cat="fin_q" min="0" max="10" step="0.1" value="${s.fin_q||''}"></div>
@@ -502,17 +520,12 @@ function initScoring() {
     currentIndex = index;
     const counter = document.getElementById('counter');
     if(counter) counter.textContent = `${currentIndex + 1} / ${DELEGATES_DATA.length}`;
-    
-    const btnPrev = document.getElementById('btn-prev');
-    const btnNext = document.getElementById('btn-next');
-    if(btnPrev) btnPrev.disabled = (currentIndex === 0);
-    if(btnNext) btnNext.disabled = (currentIndex === DELEGATES_DATA.length - 1);
+    const btnPrev = document.getElementById('btn-prev'); const btnNext = document.getElementById('btn-next');
+    if(btnPrev) btnPrev.disabled = (currentIndex === 0); if(btnNext) btnNext.disabled = (currentIndex === DELEGATES_DATA.length - 1);
   }
 
   function setupListeners() {
-    const btnNext = document.getElementById('btn-next');
-    const btnPrev = document.getElementById('btn-prev');
-    
+    const btnNext = document.getElementById('btn-next'); const btnPrev = document.getElementById('btn-prev');
     if(btnNext) btnNext.onclick = () => { if (currentIndex < DELEGATES_DATA.length - 1) showCard(currentIndex + 1); };
     if(btnPrev) btnPrev.onclick = () => { if (currentIndex > 0) showCard(currentIndex - 1); };
     container.addEventListener('input', e => {
@@ -548,45 +561,36 @@ function initScoring() {
 // --- 8. GESTOR DE COMUNIDAD (OPTIMIZADO - 10 MIN CACHE) ---
 function initCommunityManager() {
     fetchCommunityData();
-    // Auto-actualizar cada 10 minutos (600,000 ms)
     setInterval(fetchCommunityData, 600000);
 }
 
 async function fetchCommunityData() {
     const CACHE_KEY = 'mu_community_stats';
     const CACHE_TIME_KEY = 'mu_community_time';
-    const CACHE_DURATION = 10 * 60 * 1000; // 10 minutos
+    const CACHE_DURATION = 10 * 60 * 1000; 
 
     const now = Date.now();
     const lastFetch = localStorage.getItem(CACHE_TIME_KEY);
     const cachedData = localStorage.getItem(CACHE_KEY);
-    
     const sidebarTop = document.getElementById('sidebar-top-list');
     const sidebarScore = document.getElementById('sidebar-scoring-list');
 
-    // 1. Intentar cargar de caché primero
     if (cachedData && lastFetch && (now - lastFetch < CACHE_DURATION)) {
         try {
             renderSidebar(JSON.parse(cachedData));
-            console.log("Comunidad: Datos cargados desde caché local (ahorro de recursos).");
+            console.log("Comunidad: Caché cargado.");
             return;
-        } catch(e) {
-            console.warn("Error leyendo caché, forzando recarga.");
-        }
+        } catch(e) { console.warn("Error caché."); }
     }
 
-    // 2. Si no hay caché o expiró, leer de Firebase (UNA SOLA VEZ)
     if(sidebarTop) sidebarTop.innerHTML = '<div class="loading-text">Actualizando...</div>';
     if(sidebarScore) sidebarScore.innerHTML = '<div class="loading-text">Actualizando...</div>';
 
     try {
         const snapshot = await getDocs(collection(db, "users"));
-        let topScores = {};  
-        let voteScores = {}; 
-
+        let topScores = {}; let voteScores = {}; 
         snapshot.forEach((doc) => {
             const u = doc.data();
-            // Procesar Top
             if (u.top && Array.isArray(u.top)) {
                 u.top.forEach(item => {
                     if (item.rank >= 1 && item.rank <= 30) {
@@ -595,7 +599,6 @@ async function fetchCommunityData() {
                     }
                 });
             }
-            // Procesar Votos
             if (u.scores) {
                 Object.keys(u.scores).forEach(country => {
                     const s = u.scores[country];
@@ -609,30 +612,17 @@ async function fetchCommunityData() {
             }
         });
 
-        // Preparar datos finales
-        const sortedTop = Object.keys(topScores)
-            .map(name => ({ name, points: topScores[name] }))
-            .sort((a, b) => b.points - a.points)
-            .slice(0, 30);
-            
-        const sortedVotes = Object.keys(voteScores)
-            .map(name => ({ name, avg: voteScores[name].sum / voteScores[name].count }))
-            .sort((a, b) => b.avg - a.avg)
-            .slice(0, 30);
-
+        const sortedTop = Object.keys(topScores).map(name => ({ name, points: topScores[name] })).sort((a, b) => b.points - a.points).slice(0, 30);
+        const sortedVotes = Object.keys(voteScores).map(name => ({ name, avg: voteScores[name].sum / voteScores[name].count })).sort((a, b) => b.avg - a.avg).slice(0, 30);
         const stats = { top: sortedTop, votes: sortedVotes };
 
-        // 3. Guardar en caché
         localStorage.setItem(CACHE_KEY, JSON.stringify(stats));
         localStorage.setItem(CACHE_TIME_KEY, now);
-
         renderSidebar(stats);
-        console.log("Comunidad: Datos actualizados desde Firebase.");
 
     } catch (e) {
         console.error("Error fetching community:", e);
         if(sidebarTop) sidebarTop.innerHTML = '<div class="loading-text">Error de conexión</div>';
-        // Fallback: usar caché viejo si existe aunque esté vencido
         if (cachedData) renderSidebar(JSON.parse(cachedData));
     }
 }
@@ -640,22 +630,18 @@ async function fetchCommunityData() {
 function renderSidebar(data) {
     const sidebarTop = document.getElementById('sidebar-top-list');
     const sidebarScore = document.getElementById('sidebar-scoring-list');
-
     if(sidebarTop) {
         sidebarTop.innerHTML = '';
         if(data.top.length === 0) sidebarTop.innerHTML = '<div class="loading-text">Sin datos aún</div>';
-        
         data.top.forEach((item, idx) => {
             const div = document.createElement('div'); div.className = 'list-item';
             div.innerHTML = `<span class="rank">${idx+1}.</span> <span class="c-name">${item.name}</span>`;
             sidebarTop.appendChild(div);
         });
     }
-
     if(sidebarScore) {
         sidebarScore.innerHTML = '';
         if(data.votes.length === 0) sidebarScore.innerHTML = '<div class="loading-text">Sin datos aún</div>';
-
         data.votes.forEach((item, idx) => {
             const div = document.createElement('div'); div.className = 'list-item';
             div.innerHTML = `<span class="rank">${idx+1}.</span> <span class="c-name">${item.name}</span> <span class="score-val">(${item.avg.toFixed(2)})</span>`;
