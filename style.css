@@ -231,30 +231,184 @@ body{margin:0; background:var(--bg); color:var(--text); font-family:var(--font-b
 .mode-30 .export-item[data-rank="2"] .export-name,
 .mode-30 .export-item[data-rank="3"] .export-name { font-size: 22px; }
 
-/* MODE 12: 4 Rows */
+/* =========================================
+   MODE 12: 4 Rows (REDISEÑADO)
+========================================= */
 .mode-12 .export-grid {
     grid-template-columns: repeat(3, 1fr);
     grid-template-rows: repeat(4, 1fr);
-    gap: 20px; height: 100%;
+    gap: 20px; 
+    height: 100%;
 }
-.mode-12 .export-item { padding: 0 20px; }
-.mode-12 .export-rank { font-size: 50px; width: 70px; }
-.mode-12 .export-flag { width: 70px; height: 50px; }
-.mode-12 .export-name { font-size: 28px; }
 
-/* MODE 5: Custom */
+/* Cambiamos la tarjeta de Flex a Grid para apilar elementos */
+.mode-12 .export-item { 
+    padding: 15px;
+    display: grid;
+    /* Definimos el área: Arriba (Rank + Flag), Abajo (Name) */
+    grid-template-areas: 
+        "rank flag"
+        "name name";
+    grid-template-columns: auto auto; /* Ancho automático según contenido */
+    justify-content: center;          /* Centrado horizontal */
+    align-content: center;            /* Centrado vertical */
+    gap: 5px 15px;                    /* Gap vertical 5px, horizontal 15px */
+    text-align: center;
+}
+
+/* 1. El Número (Rank) */
+.mode-12 .export-rank { 
+    grid-area: rank;
+    font-size: 48px; 
+    width: auto; 
+    border-right: none; /* Quitamos la línea divisoria original */
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+/* Agregamos el punto "." después del número automáticamente */
+.mode-12 .export-rank::after {
+    content: ".";
+}
+
+/* Opcional: Si el rank 1 es una corona (👑), quitamos el punto */
+.mode-12 .export-item[data-rank="1"] .export-rank::after {
+    content: ""; 
+}
+
+/* 2. La Bandera */
+.mode-12 .export-flag { 
+    grid-area: flag;
+    width: 60px; 
+    height: 40px; 
+    align-self: center; /* Centrar verticalmente con el número */
+    box-shadow: 0 3px 8px rgba(0,0,0,0.6);
+}
+
+/* 3. El Nombre */
+.mode-12 .export-name { 
+    grid-area: name;
+    font-size: 24px;
+    margin-top: 5px;
+    width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Ajuste especial para el Top 3 (colores de texto) */
+.mode-12 .export-item[data-rank="1"] .export-rank,
+.mode-12 .export-item[data-rank="2"] .export-rank, 
+.mode-12 .export-item[data-rank="3"] .export-rank {
+    border-right: none; /* Asegurar que no salga borde en top 3 */
+}
+
+/* =========================================
+   MODE 5: Custom (CON FOTOS CIRCULARES)
+========================================= */
 .mode-5 .export-grid {
-    display: grid; grid-template-columns: 1fr 1fr; 
-    grid-template-rows: 1.2fr 1fr 1fr; gap: 30px; height: 100%;
+    display: grid; 
+    grid-template-columns: 1fr 1fr; 
+    grid-template-rows: 1.2fr 1fr 1fr; /* Fila 1 más alta para la ganadora */
+    gap: 25px; 
+    height: 100%;
 }
-.mode-5 .export-item { padding: 20px; }
+
+.mode-5 .export-item {
+    padding: 10px 20px;
+    display: flex;            /* Usamos Flexbox para alinear horizontalmente */
+    align-items: center;      /* Centrado vertical */
+    gap: 20px;                /* Espacio entre elementos */
+}
+
+/* 1. Ranking */
+.mode-5 .export-rank {
+    font-size: 60px;
+    width: 60px;
+    text-align: center;
+    border-right: 2px solid #333;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+/* 2. FOTO CIRCULAR (El truco del zoom) */
+.mode-5 .export-photo-wrapper {
+    width: 110px;              /* Tamaño del círculo */
+    height: 110px;
+    border-radius: 50%;        /* Hace el círculo */
+    border: 3px solid var(--gold-2);
+    overflow: hidden;          /* Recorta lo que sobra */
+    position: relative;        /* Necesario para posicionar la img */
+    flex-shrink: 0;            /* Evita que se aplaste */
+    background: #000;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+}
+
+.mode-5 .export-photo {
+    width: 160.71%;            /* EL ZOOM DE LOS VOTOS */
+    max-width: none;
+    height: auto;
+    position: absolute;
+    left: 50%;
+    top: 0;
+    transform: translateX(-50%); /* Centra la imagen ampliada */
+}
+
+/* 3. Detalles (Nombre y Bandera) */
+.mode-5 .export-details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow: hidden;
+}
+
+.mode-5 .export-name {
+    font-size: 28px;
+    font-weight: 700;
+    text-transform: uppercase;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+.mode-5 .export-flag {
+    width: 50px;
+    height: 35px;
+    box-shadow: 0 2px 5px #000;
+}
+
+/* --- ESTILO ESPECIAL PARA LA GANADORA (Rank 1) --- */
 .mode-5 .export-item[data-rank="1"] {
-    grid-column: span 2; background: linear-gradient(135deg, var(--gold-5), var(--gold-2)); 
-    border-color: #fff; justify-content: center;
+    grid-column: span 2;       /* Ocupa todo el ancho */
+    background: linear-gradient(135deg, var(--gold-5), var(--gold-2));
+    justify-content: center;   /* Centrado general */
+    border-color: #fff;
+    padding: 20px;
 }
-.mode-5 .export-item[data-rank="1"] .export-rank { color: #000; font-size: 80px; width: 120px; border-right-color: #000;}
-.mode-5 .export-item[data-rank="1"] .export-name { color: #000; font-size: 60px; font-weight: 900; }
-.mode-5 .export-item[data-rank="1"] .export-flag { width: 100px; height: 70px; }
-.mode-5 .export-rank { font-size: 60px; width: 90px; }
-.mode-5 .export-flag { width: 80px; height: 55px; }
-.mode-5 .export-name { font-size: 40px; }
+
+.mode-5 .export-item[data-rank="1"] .export-rank {
+    border-right: 2px solid #000;
+    color: #000;
+    font-size: 90px;
+    width: auto;
+    padding-right: 20px;
+}
+
+.mode-5 .export-item[data-rank="1"] .export-photo-wrapper {
+    width: 180px;              /* Foto más grande */
+    height: 180px;
+    border-color: #fff;
+    box-shadow: 0 0 30px rgba(0,0,0,0.4);
+}
+
+.mode-5 .export-item[data-rank="1"] .export-name {
+    font-size: 55px;
+    color: #000;
+    font-weight: 900;
+}
+
+.mode-5 .export-item[data-rank="1"] .export-flag {
+    width: 80px;
+    height: 55px;
+}

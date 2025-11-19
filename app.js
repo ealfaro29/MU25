@@ -336,23 +336,76 @@ async function generateImage(limit) {
     else if(limit === 12) exportStage.classList.add('mode-12');
     else if(limit === 5) exportStage.classList.add('mode-5');
 
+    // --- FUNCIÓN AUXILIAR PARA EVITAR PANTALLA NEGRA (CORS) ---
+    const forceCors = (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`;
+
     sortedTop.forEach(item => {
         const dData = DELEGATES_DATA.find(d => d.name === item.name);
         if(!dData) return;
+        
         const div = document.createElement('div'); div.className = 'export-item'; div.dataset.rank = item.rank;
         const rankDisplay = item.rank === 1 ? '👑' : item.rank;
-        div.innerHTML = `<div class="export-rank">${rankDisplay}</div><img class="export-flag" src="https://flagcdn.com/w80/${dData.code.toLowerCase()}.png"><div class="export-name">${dData.name}</div>`;
+
+        // URLs PROCESADAS CON PROXY
+        // Usamos el proxy para la foto principal y para la bandera para asegurar que html2canvas las lea
+        const flagUrl = forceCors(`https://flagcdn.com/w80/${dData.code.toLowerCase()}.png`);
+        
+        if (limit === 5) {
+            const rawImgUrl = `https://www.tpmum.com/25${dData.imgCode}.jpg`;
+            const imgUrl = forceCors(rawImgUrl); // <--- AQUÍ ESTÁ EL TRUCO
+
+            div.innerHTML = `
+                <div class="export-rank">${rankDisplay}</div>
+                <div class="export-photo-wrapper">
+                    <img class="export-photo" src="${imgUrl}" crossorigin="anonymous">
+                </div>
+                <div class="export-details">
+                    <div class="export-name">${dData.name}</div>
+                    <img class="export-flag" src="${flagUrl}" crossorigin="anonymous">
+                </div>`;
+        } else {
+            div.innerHTML = `
+                <div class="export-rank">${rankDisplay}</div>
+                <img class="export-flag" src="${flagUrl}" crossorigin="anonymous">
+                <div class="export-name">${dData.name}</div>`;
+        }
         exportGrid.appendChild(div);
     });
 
-    try {
-        const canvas = await window.html2canvas(exportStage, { scale: 1, useCORS: true, backgroundColor: "#000000" });
-        const link = document.createElement('a'); link.download = `MyTop${limit}_MissUniverse.png`;
-        link.href = canvas.toDataURL('image/png'); link.click();
-        if(statusEl) statusEl.textContent = "Descargada ✔";
-    } catch (err) { console.error(err); if(statusEl) statusEl.textContent = "Error"; }
-}
+    // --- ESPERAR CARGA DE IMÁGENES (CRÍTICO) ---
+    const images = exportGrid.querySelectorAll('img');
+    const promises = Array.from(images).map(img => {
+        if (img.complete) return Promise.resolve();
+        return new Promise(resolve => {
+            img.onload = resolve;
+            img.onerror = () => { console.warn('Falló imagen:', img.src); resolve(); }; // Resolvemos aunque falle para no bloquear
+        });
+    });
 
+    await Promise.all(promises);
+    await new Promise(r => setTimeout(r, 1000)); // Espera extendida de 1 segundo
+
+    try {
+        const canvas = await window.html2canvas(exportStage, { 
+            scale: 1, 
+            useCORS: true,       // Habilita el modo CORS
+            allowTaint: true,    // Permite dibujar aunque esté 'sucio' (el proxy limpia esto, pero por seguridad)
+            backgroundColor: "#000000",
+            logging: false
+        });
+        
+        const link = document.createElement('a'); 
+        link.download = `MyTop${limit}_MissUniverse.png`;
+        link.href = canvas.toDataURL('image/png'); 
+        link.click();
+        
+        if(statusEl) statusEl.textContent = "Descargada ✔";
+    } catch (err) { 
+        console.error(err); 
+        if(statusEl) statusEl.textContent = "Error al exportar"; 
+        alert("Error de seguridad con las imágenes. Intenta desactivando bloqueadores de anuncios momentáneamente.");
+    }
+}
 
 // --- 7. SCORING ---
 function initScoring() {
