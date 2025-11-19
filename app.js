@@ -662,4 +662,4 @@ function renderSidebar(data) {
             sidebarScore.appendChild(div);
         });
     }
-}
+} 
