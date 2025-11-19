@@ -1,6 +1,6 @@
 // app.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { DELEGATES_DATA } from "./delegates.js";
 
 // --- 1. CONFIGURACIÓN FIREBASE ---
@@ -92,6 +92,7 @@ function finalizeLogin(user, data) {
 
   initTopBuilder();
   initScoring();
+  listenToCommunityData();
 
   onSnapshot(doc(db, "users", user), (docSnap) => {
     const newData = docSnap.data();
@@ -248,7 +249,6 @@ function refreshTopUI() {
     const rank = Number(slot.dataset.rank);
     const entry = userData.top.find(x => x.rank === rank);
     const nameEl = slot.querySelector('.name'); 
-    const imgEl = slot.querySelector('.photo img');
     if (entry) {
       const cData = DELEGATES_DATA.find(d => d.name === entry.name);
       slot.classList.add('occupied');
@@ -313,7 +313,7 @@ function filterPoolCards() {
   for (const card of cards) card.style.display = card.textContent.toLowerCase().includes(searchTerm) ? 'flex' : 'none';
 }
 
-// --- GENERATE IMAGE ---
+// --- GENERATE IMAGE (FIXED WITH WSRV.NL) ---
 async function generateImage(limit) {
     const statusEl = document.getElementById('status-text');
     if(statusEl) statusEl.textContent = "Generando...";
@@ -330,14 +330,13 @@ async function generateImage(limit) {
     exportUser.textContent = currentUser || "Fan";
     exportSubtitle.textContent = `TOP ${limit}`;
     
-    // RESET CLASSES
     exportStage.className = ''; 
     if(limit === 30) exportStage.classList.add('mode-30');
     else if(limit === 12) exportStage.classList.add('mode-12');
     else if(limit === 5) exportStage.classList.add('mode-5');
 
-    // --- FUNCIÓN AUXILIAR PARA EVITAR PANTALLA NEGRA (CORS) ---
-    const forceCors = (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`;
+    // USO DE NUEVO PROXY: WSRV.NL (Más estable para imágenes)
+    const forceCors = (url) => `https://wsrv.nl/?url=${encodeURIComponent(url)}`;
 
     sortedTop.forEach(item => {
         const dData = DELEGATES_DATA.find(d => d.name === item.name);
@@ -346,13 +345,12 @@ async function generateImage(limit) {
         const div = document.createElement('div'); div.className = 'export-item'; div.dataset.rank = item.rank;
         const rankDisplay = item.rank === 1 ? '👑' : item.rank;
 
-        // URLs PROCESADAS CON PROXY
-        // Usamos el proxy para la foto principal y para la bandera para asegurar que html2canvas las lea
+        // Flag CDN suele funcionar bien, pero lo pasamos por proxy por seguridad en canvas
         const flagUrl = forceCors(`https://flagcdn.com/w80/${dData.code.toLowerCase()}.png`);
         
         if (limit === 5) {
             const rawImgUrl = `https://www.tpmum.com/25${dData.imgCode}.jpg`;
-            const imgUrl = forceCors(rawImgUrl); // <--- AQUÍ ESTÁ EL TRUCO
+            const imgUrl = forceCors(rawImgUrl);
 
             div.innerHTML = `
                 <div class="export-rank">${rankDisplay}</div>
@@ -372,24 +370,23 @@ async function generateImage(limit) {
         exportGrid.appendChild(div);
     });
 
-    // --- ESPERAR CARGA DE IMÁGENES (CRÍTICO) ---
     const images = exportGrid.querySelectorAll('img');
     const promises = Array.from(images).map(img => {
         if (img.complete) return Promise.resolve();
         return new Promise(resolve => {
             img.onload = resolve;
-            img.onerror = () => { console.warn('Falló imagen:', img.src); resolve(); }; // Resolvemos aunque falle para no bloquear
+            img.onerror = () => { console.warn('Falló imagen (se omitirá):', img.src); resolve(); }; 
         });
     });
 
     await Promise.all(promises);
-    await new Promise(r => setTimeout(r, 1000)); // Espera extendida de 1 segundo
+    await new Promise(r => setTimeout(r, 1000)); 
 
     try {
         const canvas = await window.html2canvas(exportStage, { 
             scale: 1, 
-            useCORS: true,       // Habilita el modo CORS
-            allowTaint: true,    // Permite dibujar aunque esté 'sucio' (el proxy limpia esto, pero por seguridad)
+            useCORS: true,       
+            allowTaint: true,
             backgroundColor: "#000000",
             logging: false
         });
@@ -403,9 +400,9 @@ async function generateImage(limit) {
     } catch (err) { 
         console.error(err); 
         if(statusEl) statusEl.textContent = "Error al exportar"; 
-        alert("Error de seguridad con las imágenes. Intenta desactivando bloqueadores de anuncios momentáneamente.");
     }
 }
+
 
 // --- 7. SCORING ---
 function initScoring() {
@@ -420,7 +417,6 @@ function initScoring() {
   function createCardEl(delegate, index) {
     const el = document.createElement('div'); el.className = 'score-card'; el.dataset.index = index; el.dataset.name = delegate.name;
     const s = userData.scores[delegate.name] || {};
-    // FÓRMULA CORRECTA PARA FOTO
     const imgUrl = `https://www.tpmum.com/25${delegate.imgCode}.jpg`;
 
     el.innerHTML = `
@@ -499,4 +495,78 @@ function initScoring() {
        list.appendChild(row);
     });
   }
+}
+
+// --- 8. SIDEBAR LOGIC (AUTOMÁTICO) ---
+function listenToCommunityData() {
+    const sidebarTop = document.getElementById('sidebar-top-list');
+    const sidebarScore = document.getElementById('sidebar-scoring-list');
+    
+    if(!sidebarTop && !sidebarScore) return;
+
+    onSnapshot(collection(db, "users"), (snapshot) => {
+        let topScores = {};  
+        let voteScores = {}; 
+
+        snapshot.forEach((doc) => {
+            const u = doc.data();
+
+            if (u.top && Array.isArray(u.top)) {
+                u.top.forEach(item => {
+                    if (item.rank >= 1 && item.rank <= 30) {
+                        if (!topScores[item.name]) topScores[item.name] = 0;
+                        topScores[item.name] += (31 - item.rank);
+                    }
+                });
+            }
+
+            if (u.scores) {
+                Object.keys(u.scores).forEach(country => {
+                    const s = u.scores[country];
+                    const total = (parseFloat(s.pre_nat)||0) + (parseFloat(s.pre_swim)||0) + (parseFloat(s.pre_gown)||0) + (parseFloat(s.fin_swim)||0) + (parseFloat(s.fin_gown)||0) + (parseFloat(s.fin_q)||0);
+                    if (total > 0) {
+                        if (!voteScores[country]) voteScores[country] = { sum: 0, count: 0 };
+                        voteScores[country].sum += total;
+                        voteScores[country].count++;
+                    }
+                });
+            }
+        });
+
+        if(sidebarTop) {
+            const sortedTop = Object.keys(topScores)
+                .map(name => ({ name, points: topScores[name] }))
+                .sort((a, b) => b.points - a.points)
+                .slice(0, 30);
+
+            sidebarTop.innerHTML = '';
+            if(sortedTop.length === 0) sidebarTop.innerHTML = '<div class="loading-text">Sin datos aún</div>';
+            
+            sortedTop.forEach((item, idx) => {
+                const div = document.createElement('div'); div.className = 'list-item';
+                div.innerHTML = `<span class="rank">${idx+1}.</span> <span class="c-name">${item.name}</span>`;
+                sidebarTop.appendChild(div);
+            });
+        }
+
+        if(sidebarScore) {
+            const sortedVotes = Object.keys(voteScores)
+                .map(name => ({ name, avg: voteScores[name].sum / voteScores[name].count }))
+                .sort((a, b) => b.avg - a.avg)
+                .slice(0, 30);
+            
+            sidebarScore.innerHTML = '';
+            if(sortedVotes.length === 0) sidebarScore.innerHTML = '<div class="loading-text">Sin datos aún</div>';
+
+            sortedVotes.forEach((item, idx) => {
+                const div = document.createElement('div'); div.className = 'list-item';
+                div.innerHTML = `<span class="rank">${idx+1}.</span> <span class="c-name">${item.name}</span> <span class="score-val">(${item.avg.toFixed(2)})</span>`;
+                sidebarScore.appendChild(div);
+            });
+        }
+
+    }, (error) => {
+        console.error("Error escuchando comunidad:", error);
+        if(sidebarTop) sidebarTop.innerHTML = '<div class="loading-text">Error de conexión</div>';
+    });
 }
